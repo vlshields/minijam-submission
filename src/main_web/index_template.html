@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en-us">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+
+	<title>Sheryl and Benny</title>
+	<meta name="title" content="Sheryl and Benny">
+	<meta name="description" content="A two-player top-down adventure game">
+	<meta name="viewport" content="width=device-width">
+
+	<style>
+		body {
+			margin: 0px;
+			overflow: hidden;
+			background-color: black;
+		}
+		canvas.game_canvas {
+			border: 0px none;
+			background-color: black;
+			padding: 0;
+			margin: 0;
+			display: block;
+		}
+	</style>
+</head>
+<body>
+	<canvas class="game_canvas" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1" onmousedown="event.target.focus()"></canvas>
+	<script>
+		// Browser autoplay policy keeps the AudioContext suspended until a user
+		// gesture.  Miniaudio only listens for 'touchend'/'click', but the game
+		// menu is keyboard-driven.  Directly resume every AudioContext on the
+		// first user interaction of any kind.
+		(function() {
+			var events = ['keydown', 'mousedown', 'touchstart', 'click'];
+			function resumeAudio() {
+				if (typeof window.miniaudio !== 'undefined' && window.miniaudio.devices) {
+					for (var i = 0; i < window.miniaudio.devices.length; i++) {
+						var d = window.miniaudio.devices[i];
+						if (d && d.webaudio && d.webaudio.state === 'suspended') {
+							console.log('[audio] resuming AudioContext on user gesture');
+							d.webaudio.resume();
+						}
+					}
+				}
+			}
+			events.forEach(function(evt) {
+				document.addEventListener(evt, resumeAudio, true);
+			});
+		})();
+	</script>
+	<script type="text/javascript" src="odin.js"></script>
+	<script>
+		var odinMemoryInterface = new odin.WasmMemoryInterface();
+		odinMemoryInterface.setIntSize(4);
+		var odinImports = odin.setupDefaultImports(odinMemoryInterface);
+
+		var Module = {
+			instantiateWasm: (imports, successCallback) => {
+				const newImports = {
+					...odinImports,
+					...imports
+				}
+
+				return WebAssembly.instantiateStreaming(fetch("index.wasm"), newImports).then(function(output) {
+					var e = output.instance.exports;
+					odinMemoryInterface.setExports(e);
+					odinMemoryInterface.setMemory(e.memory);
+					return successCallback(output.instance);
+				});
+			},
+			onRuntimeInitialized: () => {
+				console.log("[game] onRuntimeInitialized fired");
+				var e = wasmExports;
+
+				try {
+					console.log("[game] calling _start...");
+					e._start();
+					console.log("[game] calling main_start...");
+					e.main_start();
+					console.log("[game] init complete");
+
+					// Audio diagnostics
+					if (typeof window.miniaudio !== 'undefined') {
+						console.log("[audio] miniaudio initialized, devices:", window.miniaudio.devices ? window.miniaudio.devices.length : 0);
+						for (var i = 0; i < (window.miniaudio.devices || []).length; i++) {
+							var d = window.miniaudio.devices[i];
+							if (d && d.webaudio) {
+								console.log("[audio] device", i, "- AudioContext state:", d.webaudio.state, "device state:", d.state, "started=", window.miniaudio.device_state.started);
+							}
+						}
+					} else {
+						console.warn("[audio] miniaudio NOT initialized after game init!");
+					}
+
+				} catch (err) {
+					console.error("[game] init error:", err);
+					return;
+				}
+
+				function send_resize() {
+					var canvas = document.getElementById('canvas');
+					canvas.width = window.innerWidth;
+					canvas.height = window.innerHeight;
+					e.web_window_size_changed(canvas.width, canvas.height);
+				}
+
+				window.addEventListener('resize', function(event) {
+					send_resize();
+				}, true);
+
+				send_resize();
+
+				// Track mouse position and buttons on the canvas
+				var gameCanvas = document.getElementById('canvas');
+				gameCanvas.addEventListener('mousemove', function(ev) {
+					var rect = gameCanvas.getBoundingClientRect();
+					e.web_set_mouse_pos(
+						Math.round(ev.clientX - rect.left),
+						Math.round(ev.clientY - rect.top)
+					);
+				});
+				gameCanvas.addEventListener('mousedown', function(ev) {
+					if (ev.button === 0) { e.web_set_mouse_down(1); }
+				});
+				gameCanvas.addEventListener('mouseup', function(ev) {
+					if (ev.button === 0) { e.web_set_mouse_down(0); }
+				});
+				window.addEventListener('mouseup', function(ev) {
+					if (ev.button === 0) { e.web_set_mouse_down(0); }
+				});
+
+				function do_main_update() {
+					e.main_update();
+					window.requestAnimationFrame(do_main_update);
+				}
+
+				window.requestAnimationFrame(do_main_update);
+			},
+			print: (function() {
+				var element = document.getElementById("output");
+				if (element) element.value = '';
+				return function(text) {
+					if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+					console.log(text);
+					if (element) {
+					  element.value += text + "\n";
+					  element.scrollTop = element.scrollHeight;
+					}
+				};
+			})(),
+			canvas: (function() {
+				return document.getElementById("canvas");
+			})()
+		};
+	</script>
+
+	{{{ SCRIPT }}}
+</body>
+</html>
