@@ -31,14 +31,14 @@ COMPANION_LERP_SPEED :: 10.0
 
 COMPANION_ATTACK_COOLDOWN :: 2.0
 COMPANION_ONESHOT_FPS     :: 12.0
-COMPANION_DAMAGE          :: 21.0
+COMPANION_DAMAGE          :: 31.0
 
 // Blood scythe
 SCYTHE_SRC_SIZE        :: 32
 SCYTHE_OFFSET_X        :: 14.0
 SCYTHE_OFFSET_Y        :: 0.0
 SCYTHE_LERP_SPEED      :: 10.0
-SCYTHE_ATTACK_COOLDOWN :: 1.0
+SCYTHE_ATTACK_COOLDOWN :: 0.5
 SCYTHE_ONESHOT_FPS     :: 18.0
 SCYTHE_DAMAGE          :: 21.0
 
@@ -81,6 +81,7 @@ QUICK_ATTACK_HIT_FRAME    :: 3
 
 // Enemy – devil
 DEVIL_SRC_SIZE         :: 16
+DEVIL_DRAW_SIZE        :: 12
 DEVIL_HITBOX_W         :: 12
 DEVIL_HITBOX_H         :: 14
 DEVIL_HP               :: 40.0
@@ -94,3 +95,36 @@ MAX_DEVILS             :: 16
 
 // Damage flash
 DAMAGE_FLASH_DURATION  :: 0.15
+
+// Blood points
+BP_STARTING         :: 50
+BP_DRAIN_INTERVAL   :: 3.0
+BP_FLAMEBALL_KILL   :: 1
+BP_DEVIL_KILL       :: 3
+BP_FLAMEWARDEN_KILL :: 5
+BP_MIN_CARRY        :: 25
+
+// Rounds (scripted)
+ROUND_COUNT :: 3
+ROUND_DURATIONS : [ROUND_COUNT]f32 : {17.0, 30.0, 50.0}
+ROUND_MAPS : [ROUND_COUNT]string : {
+	"assets/maps/main_area_first.map",
+	"assets/maps/level2.map",
+	"assets/maps/level3.map",
+}
+
+// Parallax background
+PARALLAX_LAYER_COUNT :: 3
+// Speeds indexed by spritesheet row: 0=sky, 1=buildings, 2=stars
+PARALLAX_SPEEDS : [PARALLAX_LAYER_COUNT]f32 : {0.02, 0.2, 0.08}
+// Back-to-front draw order: sky, stars, buildings
+PARALLAX_DRAW_ORDER : [PARALLAX_LAYER_COUNT]int : {0, 2, 1}
+
+// Endless mode (round 4+)
+ENDLESS_ROUND_DURATION  :: 60.0
+ENDLESS_SCALE_PER_ROUND :: 1.1
+ENDLESS_MAPS : [3]string : {
+	"assets/maps/main_area_first.map",
+	"assets/maps/level2.map",
+	"assets/maps/level3.map",
+}

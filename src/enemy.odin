@@ -26,6 +26,8 @@ Enemy :: struct {
 	anim_timer:    f32,
 	state_timer:       f32,
 	damage_flash_timer: f32,
+	hit_by_companion:   bool,
+	hit_by_scythe:      bool,
 }
 
 Enemy_Pool :: struct {
@@ -80,6 +82,8 @@ update_enemies :: proc(
 	scythe: ^Blood_Scythe,
 	camera: ^raylib.Camera2D,
 	map_data: ^dm.Dot_Map,
+	bp: ^i32,
+	scale: f32,
 	dt: f32,
 ) {
 	// Compute viewport rect for aggro check
@@ -131,7 +135,7 @@ update_enemies :: proc(
 		case .Attacking:
 			// Face and roll toward player
 			e.facing_left = player.pos.x < e.pos.x
-			e.vel.x = e.facing_left ? -ENEMY_SPEED : ENEMY_SPEED
+			e.vel.x = e.facing_left ? -ENEMY_SPEED * scale : ENEMY_SPEED * scale
 
 			// Gravity
 			e.vel.y += GRAVITY * dt
@@ -145,7 +149,7 @@ update_enemies :: proc(
 
 			// Check collision with player
 			if check_enemy_player_collision(e, player) {
-				player.hp -= ENEMY_DAMAGE
+				player.hp -= ENEMY_DAMAGE * scale
 				player.damage_flash_timer = DAMAGE_FLASH_DURATION
 				if player.hp < 0 {
 					player.hp = 0
@@ -184,28 +188,36 @@ update_enemies :: proc(
 		case .Dead:
 		}
 
+		// Reset hit flags when attacks end
+		if companion.state != .Attacking { e.hit_by_companion = false }
+		if scythe.state != .Attacking && scythe.state != .Quick_Attacking { e.hit_by_scythe = false }
+
 		// Companion attack collision
-		if e.state != .Dead && companion.state == .Attacking {
+		if e.state != .Dead && companion.state == .Attacking && !e.hit_by_companion {
 			comp_rect := get_companion_rect(companion, player)
 			ehb := get_enemy_hitbox(e)
 			if raylib.CheckCollisionRecs(comp_rect, ehb) {
 				e.hp -= COMPANION_DAMAGE
 				e.damage_flash_timer = DAMAGE_FLASH_DURATION
+				e.hit_by_companion = true
 				if e.hp <= 0 {
 					e.state = .Dead
+					bp^ += BP_FLAMEBALL_KILL
 				}
 			}
 		}
 
 		// Blood scythe attack collision
-		if e.state != .Dead && (scythe.state == .Attacking || scythe.state == .Quick_Attacking) {
+		if e.state != .Dead && (scythe.state == .Attacking || scythe.state == .Quick_Attacking) && !e.hit_by_scythe {
 			scythe_rect := get_scythe_rect(scythe, player)
 			ehb := get_enemy_hitbox(e)
 			if raylib.CheckCollisionRecs(scythe_rect, ehb) {
 				e.hp -= SCYTHE_DAMAGE
 				e.damage_flash_timer = DAMAGE_FLASH_DURATION
+				e.hit_by_scythe = true
 				if e.hp <= 0 {
 					e.state = .Dead
+					bp^ += BP_FLAMEBALL_KILL
 				}
 			}
 		}
@@ -219,6 +231,7 @@ update_enemies :: proc(
 				e.damage_flash_timer = DAMAGE_FLASH_DURATION
 				if e.hp <= 0 {
 					e.state = .Dead
+					bp^ += BP_FLAMEBALL_KILL
 				}
 			}
 		}
@@ -384,14 +397,18 @@ Devil :: struct {
 	bolt_anim_timer:    f32,
 	bolt_active:        bool,
 	bolt_dealt_damage:  bool,
+	hit_by_companion:   bool,
+	hit_by_scythe:      bool,
 }
 
 Devil_Pool :: struct {
 	devils:        [MAX_DEVILS]Devil,
 	count:         int,
+	idle_tex:      raylib.Texture2D,
 	move_tex:      raylib.Texture2D,
 	attack_tex:    raylib.Texture2D,
 	bolt_tex:      raylib.Texture2D,
+	idle_frames:   int,
 	move_frames:   int,
 	attack_frames: int,
 	bolt_frames:   int,
@@ -399,9 +416,11 @@ Devil_Pool :: struct {
 
 
 init_devils :: proc(pool: ^Devil_Pool) {
+	pool.idle_tex = raylib.LoadTexture("assets/sprites/enemy_devil_idle.png")
 	pool.move_tex = raylib.LoadTexture("assets/sprites/enemy_devil_move.png")
 	pool.attack_tex = raylib.LoadTexture("assets/sprites/enemy_devil_attack.png")
 	pool.bolt_tex = raylib.LoadTexture("assets/sprites/enemy_devil_flamebolt.png")
+	pool.idle_frames = int(pool.idle_tex.width) / DEVIL_SRC_SIZE
 	pool.move_frames = int(pool.move_tex.width) / DEVIL_SRC_SIZE
 	pool.attack_frames = int(pool.attack_tex.width) / DEVIL_SRC_SIZE
 	pool.bolt_frames = int(pool.bolt_tex.width) / DEVIL_BOLT_SRC_SIZE
@@ -430,6 +449,7 @@ spawn_devil :: proc(pool: ^Devil_Pool, pos: raylib.Vector2) {
 }
 
 unload_devils :: proc(pool: ^Devil_Pool) {
+	raylib.UnloadTexture(pool.idle_tex)
 	raylib.UnloadTexture(pool.move_tex)
 	raylib.UnloadTexture(pool.attack_tex)
 	raylib.UnloadTexture(pool.bolt_tex)
@@ -442,6 +462,8 @@ update_devils :: proc(
 	scythe: ^Blood_Scythe,
 	camera: ^raylib.Camera2D,
 	map_data: ^dm.Dot_Map,
+	bp: ^i32,
+	scale: f32,
 	dt: f32,
 ) {
 	half_w := f32(SCREEN_WIDTH) / (2 * camera.zoom)
@@ -498,7 +520,7 @@ update_devils :: proc(
 				d.bolt_anim_timer = 0
 				d.bolt_dealt_damage = false
 			} else {
-				d.vel.x = d.facing_left ? -DEVIL_SPEED : DEVIL_SPEED
+				d.vel.x = d.facing_left ? -DEVIL_SPEED * scale : DEVIL_SPEED * scale
 				devil_animate_loop(d, pool.move_frames, dt)
 			}
 
@@ -521,7 +543,7 @@ update_devils :: proc(
 				bolt_rect := devil_get_bolt_rect(d)
 				player_rect := get_hitbox(player)
 				if raylib.CheckCollisionRecs(bolt_rect, player_rect) {
-					player.hp -= DEVIL_DAMAGE
+					player.hp -= DEVIL_DAMAGE * scale
 					player.damage_flash_timer = DAMAGE_FLASH_DURATION
 					if player.hp < 0 {
 						player.hp = 0
@@ -554,30 +576,38 @@ update_devils :: proc(
 		case .Dead:
 		}
 
+		// Reset hit flags when attacks end
+		if companion.state != .Attacking { d.hit_by_companion = false }
+		if scythe.state != .Attacking && scythe.state != .Quick_Attacking { d.hit_by_scythe = false }
+
 		// Companion attack collision
-		if d.state != .Dead && companion.state == .Attacking {
+		if d.state != .Dead && companion.state == .Attacking && !d.hit_by_companion {
 			comp_rect := get_companion_rect(companion, player)
 			dhb := devil_get_hitbox(d)
 			if raylib.CheckCollisionRecs(comp_rect, dhb) {
 				d.hp -= COMPANION_DAMAGE
 				d.damage_flash_timer = DAMAGE_FLASH_DURATION
+				d.hit_by_companion = true
 				if d.hp <= 0 {
 					d.state = .Dead
 					d.bolt_active = false
+					bp^ += BP_DEVIL_KILL
 				}
 			}
 		}
 
 		// Blood scythe collision
-		if d.state != .Dead && (scythe.state == .Attacking || scythe.state == .Quick_Attacking) {
+		if d.state != .Dead && (scythe.state == .Attacking || scythe.state == .Quick_Attacking) && !d.hit_by_scythe {
 			scythe_rect := get_scythe_rect(scythe, player)
 			dhb := devil_get_hitbox(d)
 			if raylib.CheckCollisionRecs(scythe_rect, dhb) {
 				d.hp -= SCYTHE_DAMAGE
 				d.damage_flash_timer = DAMAGE_FLASH_DURATION
+				d.hit_by_scythe = true
 				if d.hp <= 0 {
 					d.state = .Dead
 					d.bolt_active = false
+					bp^ += BP_DEVIL_KILL
 				}
 			}
 		}
@@ -592,6 +622,7 @@ update_devils :: proc(
 				if d.hp <= 0 {
 					d.state = .Dead
 					d.bolt_active = false
+					bp^ += BP_DEVIL_KILL
 				}
 			}
 		}
@@ -619,7 +650,10 @@ draw_devils :: proc(pool: ^Devil_Pool, white_shader: raylib.Shader) {
 		case .Attacking:
 			tex = pool.attack_tex
 			max_frames = pool.attack_frames
-		case .Idle, .Pursuing, .Cooldown:
+		case .Idle, .Cooldown:
+			tex = pool.idle_tex
+			max_frames = pool.idle_frames
+		case .Pursuing:
 			tex = pool.move_tex
 			max_frames = pool.move_frames
 		case .Dead:
@@ -637,10 +671,10 @@ draw_devils :: proc(pool: ^Devil_Pool, white_shader: raylib.Shader) {
 			f32(DEVIL_SRC_SIZE),
 		}
 		dst := raylib.Rectangle{
-			d.pos.x - f32(DEVIL_SRC_SIZE) / 2,
-			d.pos.y - f32(DEVIL_SRC_SIZE),
-			f32(DEVIL_SRC_SIZE),
-			f32(DEVIL_SRC_SIZE),
+			d.pos.x - f32(DEVIL_DRAW_SIZE) / 2,
+			d.pos.y - f32(DEVIL_DRAW_SIZE),
+			f32(DEVIL_DRAW_SIZE),
+			f32(DEVIL_DRAW_SIZE),
 		}
 		if d.damage_flash_timer > 0 {
 			raylib.BeginShaderMode(white_shader)
@@ -683,11 +717,11 @@ devil_get_hitbox :: proc(d: ^Devil) -> raylib.Rectangle {
 devil_get_bolt_draw_rect :: proc(d: ^Devil) -> raylib.Rectangle {
 	// Position bolt sprite in front of the devil, centered on its body
 	bolt_x: f32 = d.facing_left \
-		? d.pos.x - f32(DEVIL_SRC_SIZE) / 2 - f32(DEVIL_BOLT_SRC_SIZE) \
-		: d.pos.x + f32(DEVIL_SRC_SIZE) / 2
+		? d.pos.x - f32(DEVIL_DRAW_SIZE) / 2 - f32(DEVIL_BOLT_SRC_SIZE) \
+		: d.pos.x + f32(DEVIL_DRAW_SIZE) / 2
 	return {
 		bolt_x,
-		d.pos.y - f32(DEVIL_SRC_SIZE) / 2 - f32(DEVIL_BOLT_SRC_SIZE) / 2,
+		d.pos.y - f32(DEVIL_DRAW_SIZE) / 2 - f32(DEVIL_BOLT_SRC_SIZE) / 2,
 		f32(DEVIL_BOLT_SRC_SIZE),
 		f32(DEVIL_BOLT_SRC_SIZE),
 	}
@@ -812,6 +846,8 @@ Flamewarden :: struct {
 	flame_anim_timer:   f32,
 	flame_active:       bool,
 	flame_dealt_damage: bool,
+	hit_by_companion:   bool,
+	hit_by_scythe:      bool,
 }
 
 FW_Pool :: struct {
@@ -894,6 +930,8 @@ update_flamewardens :: proc(
 	scythe: ^Blood_Scythe,
 	camera: ^raylib.Camera2D,
 	map_data: ^dm.Dot_Map,
+	bp: ^i32,
+	scale: f32,
 	dt: f32,
 ) {
 	half_w := f32(SCREEN_WIDTH) / (2 * camera.zoom)
@@ -947,7 +985,7 @@ update_flamewardens :: proc(
 			fw_animate_loop(fw, pool.move_frames, dt)
 			fw.facing_left = fw.patrol_dir < 0
 
-			fw.vel.x = fw.patrol_dir * FW_PATROL_SPEED
+			fw.vel.x = fw.patrol_dir * FW_PATROL_SPEED * scale
 			fw_apply_gravity(fw, dt)
 			fw_move_and_collide(fw, map_data, dt)
 
@@ -1014,7 +1052,7 @@ update_flamewardens :: proc(
 			// Track player position — slide flame toward player's X
 			target_x := player.pos.x
 			diff := target_x - fw.flame_pos.x
-			max_move := FW_FLAME_TRACK_SPEED * dt
+			max_move := FW_FLAME_TRACK_SPEED * scale * dt
 			if diff > max_move {
 				fw.flame_pos.x += max_move
 			} else if diff < -max_move {
@@ -1037,7 +1075,7 @@ update_flamewardens :: proc(
 				flame_rect := get_flame_hitbox(fw)
 				player_rect := get_hitbox(player)
 				if raylib.CheckCollisionRecs(flame_rect, player_rect) {
-					player.hp -= FW_FLAME_DAMAGE
+					player.hp -= FW_FLAME_DAMAGE * scale
 					player.damage_flash_timer = DAMAGE_FLASH_DURATION
 					if player.hp < 0 {
 						player.hp = 0
@@ -1083,30 +1121,38 @@ update_flamewardens :: proc(
 		case .Dead:
 		}
 
+		// Reset hit flags when attacks end
+		if companion.state != .Attacking { fw.hit_by_companion = false }
+		if scythe.state != .Attacking && scythe.state != .Quick_Attacking { fw.hit_by_scythe = false }
+
 		// Companion attack collision
-		if fw.state != .Dead && companion.state == .Attacking {
+		if fw.state != .Dead && companion.state == .Attacking && !fw.hit_by_companion {
 			comp_rect := get_companion_rect(companion, player)
 			fhb := get_fw_hitbox(fw)
 			if raylib.CheckCollisionRecs(comp_rect, fhb) {
 				fw.hp -= COMPANION_DAMAGE
 				fw.damage_flash_timer = DAMAGE_FLASH_DURATION
+				fw.hit_by_companion = true
 				if fw.hp <= 0 {
 					fw.state = .Dead
 					fw.flame_active = false
+					bp^ += BP_FLAMEWARDEN_KILL
 				}
 			}
 		}
 
 		// Blood scythe attack collision
-		if fw.state != .Dead && (scythe.state == .Attacking || scythe.state == .Quick_Attacking) {
+		if fw.state != .Dead && (scythe.state == .Attacking || scythe.state == .Quick_Attacking) && !fw.hit_by_scythe {
 			scythe_rect := get_scythe_rect(scythe, player)
 			fhb := get_fw_hitbox(fw)
 			if raylib.CheckCollisionRecs(scythe_rect, fhb) {
 				fw.hp -= SCYTHE_DAMAGE
 				fw.damage_flash_timer = DAMAGE_FLASH_DURATION
+				fw.hit_by_scythe = true
 				if fw.hp <= 0 {
 					fw.state = .Dead
 					fw.flame_active = false
+					bp^ += BP_FLAMEWARDEN_KILL
 				}
 			}
 		}
@@ -1121,6 +1167,7 @@ update_flamewardens :: proc(
 				if fw.hp <= 0 {
 					fw.state = .Dead
 					fw.flame_active = false
+					bp^ += BP_FLAMEWARDEN_KILL
 				}
 			}
 		}
