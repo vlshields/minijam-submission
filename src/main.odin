@@ -8,6 +8,7 @@ import "core:math/rand"
 import "core:strings"
 
 Game_Phase :: enum {
+	Main_Menu,
 	Playing,
 	Round_Won,
 	Game_Over,
@@ -41,6 +42,14 @@ Game_State :: struct {
 	bp_drain_timer: f32,
 	phase_timer:    f32,
 	enemy_scale:    f32,
+
+	// Main menu
+	menu_selection:  int,
+	menu_timer:      f32,
+	menu_title_y:    f32,
+	menu_items_x:    f32,
+	menu_fall_frame: f32,
+	menu_fall_timer: f32,
 }
 
 @(private = "file")
@@ -350,9 +359,13 @@ void main() {
 		gs.white_flash_shader = raylib.LoadShaderFromMemory(nil, fs)
 	}
 
-	// Start first round
+	// Start at main menu
 	gs.current_round = 0
-	start_round()
+	gs.phase = .Main_Menu
+	gs.menu_selection = 0
+	gs.menu_timer = 0
+	gs.menu_fall_frame = 0
+	gs.menu_fall_timer = 0
 }
 
 update :: proc() {
@@ -364,6 +377,8 @@ update :: proc() {
 	}
 
 	switch gs.phase {
+	case .Main_Menu:
+		update_main_menu(dt)
 	case .Playing:
 		update_playing(dt)
 	case .Round_Won:
@@ -377,6 +392,8 @@ update :: proc() {
 	raylib.ClearBackground(gs.bg_color)
 
 	switch gs.phase {
+	case .Main_Menu:
+		draw_main_menu()
 	case .Playing:
 		draw_playing()
 	case .Round_Won:
@@ -435,6 +452,124 @@ set_web_mouse_down :: proc(down: bool) {
 }
 
 // ---------------------------------------------------------------------------
+// Phase: Main Menu
+// ---------------------------------------------------------------------------
+
+@(private = "file")
+update_main_menu :: proc(dt: f32) {
+	gs.menu_timer += dt
+
+	// Title slide-in (cubic ease-out, 0.8s)
+	TITLE_ANIM_DUR :: f32(0.8)
+	TITLE_START_Y  :: f32(-40)
+	TITLE_REST_Y   :: f32(60)
+	title_t := min(gs.menu_timer / TITLE_ANIM_DUR, 1.0)
+	inv_t := 1.0 - title_t
+	title_ease := 1.0 - inv_t * inv_t * inv_t
+	gs.menu_title_y = TITLE_START_Y + (TITLE_REST_Y - TITLE_START_Y) * title_ease
+
+	// Items slide-in (cubic ease-out, 0.6s, delayed 0.3s)
+	ITEMS_DELAY     :: f32(0.3)
+	ITEMS_ANIM_DUR  :: f32(0.6)
+	ITEMS_OFFSET    :: f32(-250)
+	items_elapsed := max(gs.menu_timer - ITEMS_DELAY, 0.0)
+	items_t := min(items_elapsed / ITEMS_ANIM_DUR, 1.0)
+	inv_it := 1.0 - items_t
+	items_ease := 1.0 - inv_it * inv_it * inv_it
+	gs.menu_items_x = ITEMS_OFFSET * (1.0 - items_ease)
+
+	// Looping fall animation
+	fall_frames := gs.player.fall_frames
+	if fall_frames > 1 {
+		gs.menu_fall_timer += dt
+		if gs.menu_fall_timer >= ANIM_FRAME_TIME {
+			gs.menu_fall_timer -= ANIM_FRAME_TIME
+			gs.menu_fall_frame += 1
+			if int(gs.menu_fall_frame) >= fall_frames {
+				gs.menu_fall_frame = 0
+			}
+		}
+	}
+
+	// Navigation
+	if raylib.IsKeyPressed(.DOWN) || raylib.IsKeyPressed(.S) {
+		gs.menu_selection = (gs.menu_selection + 1) %% 2
+	}
+	if raylib.IsKeyPressed(.UP) || raylib.IsKeyPressed(.W) {
+		gs.menu_selection = (gs.menu_selection - 1) %% 2
+	}
+
+	// Confirm
+	if raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+		if gs.menu_selection == 0 {
+			start_round()
+		}
+	}
+}
+
+@(private = "file")
+draw_main_menu :: proc() {
+	// Sky layer (static)
+	sky_src := raylib.Rectangle{0, 0, f32(SCREEN_WIDTH), f32(SCREEN_HEIGHT)}
+	raylib.DrawTextureRec(gs.parallax_tex, sky_src, {0, 0}, raylib.WHITE)
+
+	// Stars layer (scrolling up for falling effect)
+	STAR_SCROLL_SPEED :: f32(40)
+	star_offset := gs.menu_timer * STAR_SCROLL_SPEED
+	wrapped := star_offset - f32(SCREEN_HEIGHT) * math.floor_f32(star_offset / f32(SCREEN_HEIGHT))
+	star_src := raylib.Rectangle{0, f32(2 * SCREEN_HEIGHT), f32(SCREEN_WIDTH), f32(SCREEN_HEIGHT)}
+	raylib.DrawTextureRec(gs.parallax_tex, star_src, {0, -wrapped}, raylib.WHITE)
+	raylib.DrawTextureRec(gs.parallax_tex, star_src, {0, f32(SCREEN_HEIGHT) - wrapped}, raylib.WHITE)
+
+	// Title
+	title : cstring = "LIFE BLOOD"
+	title_size :: i32(20)
+	title_w := raylib.MeasureText(title, title_size)
+	title_x := (SCREEN_WIDTH - title_w) / 2
+	raylib.DrawText(title, title_x, i32(gs.menu_title_y), title_size, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
+
+	// Menu items
+	items := [2]cstring{"PLAY", "OPTIONS"}
+	item_size :: i32(10)
+	item_base_y :: i32(140)
+	item_spacing :: i32(20)
+
+	for item, i in items {
+		item_w := raylib.MeasureText(item, item_size)
+		item_x := (SCREEN_WIDTH - item_w) / 2 + i32(gs.menu_items_x)
+		item_y := item_base_y + i32(i) * item_spacing
+
+		color := raylib.Color{150, 150, 150, 255}
+		if i == gs.menu_selection {
+			color = raylib.WHITE
+		}
+		raylib.DrawText(item, item_x, item_y, item_size, color)
+	}
+
+	// Selection arrow
+	sel_item := items[gs.menu_selection]
+	sel_w := raylib.MeasureText(sel_item, item_size)
+	arrow_x := (SCREEN_WIDTH - sel_w) / 2 + i32(gs.menu_items_x) - 12
+	arrow_y := item_base_y + i32(gs.menu_selection) * item_spacing
+	raylib.DrawText(">", arrow_x, arrow_y, item_size, raylib.WHITE)
+
+	// Decorative falling player sprite
+	frame := int(gs.menu_fall_frame)
+	src := raylib.Rectangle{
+		f32(frame * SPRITE_SRC_SIZE), 0,
+		f32(SPRITE_SRC_SIZE),
+		f32(SPRITE_SRC_SIZE),
+	}
+	MENU_SPRITE_SIZE :: f32(48)
+	dst := raylib.Rectangle{
+		f32(SCREEN_WIDTH) * 0.75 - MENU_SPRITE_SIZE / 2,
+		f32(SCREEN_HEIGHT) / 2 - MENU_SPRITE_SIZE / 2,
+		MENU_SPRITE_SIZE,
+		MENU_SPRITE_SIZE,
+	}
+	raylib.DrawTexturePro(gs.player.fall_tex, src, dst, {0, 0}, 0, raylib.WHITE)
+}
+
 // Phase: Playing
 // ---------------------------------------------------------------------------
 
