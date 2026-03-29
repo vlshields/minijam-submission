@@ -71,7 +71,7 @@ var ENVIRONMENT_IS_SHELL = !ENVIRONMENT_IS_WEB && !ENVIRONMENT_IS_NODE && !ENVIR
 
 // --pre-jses are emitted after the Module integration code, so that they can
 // refer to Module (if they choose; they can also define Module)
-// include: /tmp/tmpykhdczsc.js
+// include: /tmp/tmpbwpcqnfa.js
 
   if (!Module['expectedDataFileDownloads']) Module['expectedDataFileDownloads'] = 0;
   Module['expectedDataFileDownloads']++;
@@ -203,25 +203,25 @@ Module['FS_createPath']("/assets", "tiles", true, true);
     }
 
     }
-    loadPackage({"files": [{"filename": "/assets/maps/level2.map", "start": 0, "end": 6294}, {"filename": "/assets/maps/main_area_first.map", "start": 6294, "end": 12857}, {"filename": "/assets/sprites/blood_scythe_attack.png", "start": 12857, "end": 13945}, {"filename": "/assets/sprites/blood_scythe_despsawn.png", "start": 13945, "end": 14470}, {"filename": "/assets/sprites/blood_scythe_fast_attack.png", "start": 14470, "end": 15176}, {"filename": "/assets/sprites/blood_scythe_idle.png", "start": 15176, "end": 15500}, {"filename": "/assets/sprites/blood_scythe_spawn.png", "start": 15500, "end": 15898}, {"filename": "/assets/sprites/blood_teeth_attack.png", "start": 15898, "end": 16576}, {"filename": "/assets/sprites/blood_teeth_despawn.png", "start": 16576, "end": 17228}, {"filename": "/assets/sprites/blood_teeth_idle.png", "start": 17228, "end": 17505}, {"filename": "/assets/sprites/blood_teeth_move.png", "start": 17505, "end": 17866}, {"filename": "/assets/sprites/blood_teeth_spawn.png", "start": 17866, "end": 18183}, {"filename": "/assets/sprites/enemy_devil_attack.png", "start": 18183, "end": 18439}, {"filename": "/assets/sprites/enemy_devil_flamebolt.png", "start": 18439, "end": 18739}, {"filename": "/assets/sprites/enemy_devil_move.png", "start": 18739, "end": 19081}, {"filename": "/assets/sprites/enemy_flameball_idle.png", "start": 19081, "end": 19521}, {"filename": "/assets/sprites/enemy_flameball_move.png", "start": 19521, "end": 20204}, {"filename": "/assets/sprites/enemy_flamewarden_attack_end.png", "start": 20204, "end": 20635}, {"filename": "/assets/sprites/enemy_flamewarden_attack_loop.png", "start": 20635, "end": 21330}, {"filename": "/assets/sprites/enemy_flamewarden_attack_start.png", "start": 21330, "end": 21710}, {"filename": "/assets/sprites/enemy_flamewarden_idle.png", "start": 21710, "end": 21968}, {"filename": "/assets/sprites/enemy_flamewarden_isattacking.png", "start": 21968, "end": 22289}, {"filename": "/assets/sprites/enemy_flamewarden_move.png", "start": 22289, "end": 22565}, {"filename": "/assets/sprites/player_falling.png", "start": 22565, "end": 22820}, {"filename": "/assets/sprites/player_fast_attack1.png", "start": 22820, "end": 23203}, {"filename": "/assets/sprites/player_fast_attack2.png", "start": 23203, "end": 23539}, {"filename": "/assets/sprites/player_idle.png", "start": 23539, "end": 23788}, {"filename": "/assets/sprites/player_jump-sheet.png", "start": 23788, "end": 24008}, {"filename": "/assets/sprites/player_jump.png", "start": 24008, "end": 24231}, {"filename": "/assets/sprites/player_move.png", "start": 24231, "end": 24477}, {"filename": "/assets/sprites/player_roll.png", "start": 24477, "end": 24886}, {"filename": "/assets/tiles/ground.png", "start": 24886, "end": 24999}, {"filename": "/assets/tiles/ground_blood1.png", "start": 24999, "end": 25134}, {"filename": "/assets/tiles/ground_blood2.png", "start": 25134, "end": 25284}, {"filename": "/assets/tiles/ground_blood3.png", "start": 25284, "end": 25413}], "remote_package_size": 25413});
+    loadPackage({"files": [{"filename": "/assets/maps/level2.map", "start": 0, "end": 6294}, {"filename": "/assets/maps/level3.map", "start": 6294, "end": 12588}, {"filename": "/assets/maps/main_area_first.map", "start": 12588, "end": 19151}, {"filename": "/assets/sprites/blood_scythe_attack.png", "start": 19151, "end": 20239}, {"filename": "/assets/sprites/blood_scythe_despsawn.png", "start": 20239, "end": 20764}, {"filename": "/assets/sprites/blood_scythe_fast_attack.png", "start": 20764, "end": 21470}, {"filename": "/assets/sprites/blood_scythe_idle.png", "start": 21470, "end": 21794}, {"filename": "/assets/sprites/blood_scythe_spawn.png", "start": 21794, "end": 22192}, {"filename": "/assets/sprites/blood_teeth_attack.png", "start": 22192, "end": 22870}, {"filename": "/assets/sprites/blood_teeth_despawn.png", "start": 22870, "end": 23522}, {"filename": "/assets/sprites/blood_teeth_idle.png", "start": 23522, "end": 23799}, {"filename": "/assets/sprites/blood_teeth_move.png", "start": 23799, "end": 24160}, {"filename": "/assets/sprites/blood_teeth_spawn.png", "start": 24160, "end": 24477}, {"filename": "/assets/sprites/enemy_devil_attack.png", "start": 24477, "end": 24998}, {"filename": "/assets/sprites/enemy_devil_flamebolt.png", "start": 24998, "end": 25298}, {"filename": "/assets/sprites/enemy_devil_idle.png", "start": 25298, "end": 25931}, {"filename": "/assets/sprites/enemy_devil_move.png", "start": 25931, "end": 26940}, {"filename": "/assets/sprites/enemy_flameball_idle.png", "start": 26940, "end": 27380}, {"filename": "/assets/sprites/enemy_flameball_move.png", "start": 27380, "end": 28063}, {"filename": "/assets/sprites/enemy_flamewarden_attack_end.png", "start": 28063, "end": 28494}, {"filename": "/assets/sprites/enemy_flamewarden_attack_loop.png", "start": 28494, "end": 29189}, {"filename": "/assets/sprites/enemy_flamewarden_attack_start.png", "start": 29189, "end": 29569}, {"filename": "/assets/sprites/enemy_flamewarden_idle.png", "start": 29569, "end": 29827}, {"filename": "/assets/sprites/enemy_flamewarden_isattacking.png", "start": 29827, "end": 30148}, {"filename": "/assets/sprites/enemy_flamewarden_move.png", "start": 30148, "end": 30424}, {"filename": "/assets/sprites/parallax-bg-buildings.png", "start": 30424, "end": 32681}, {"filename": "/assets/sprites/parallax-bg-sky.png", "start": 32681, "end": 34449}, {"filename": "/assets/sprites/parallax-bg-stars.png", "start": 34449, "end": 44710}, {"filename": "/assets/sprites/parallax-bg.png", "start": 44710, "end": 59181}, {"filename": "/assets/sprites/player_falling.png", "start": 59181, "end": 59436}, {"filename": "/assets/sprites/player_fast_attack1.png", "start": 59436, "end": 59819}, {"filename": "/assets/sprites/player_fast_attack2.png", "start": 59819, "end": 60155}, {"filename": "/assets/sprites/player_idle.png", "start": 60155, "end": 60404}, {"filename": "/assets/sprites/player_jump-sheet.png", "start": 60404, "end": 60624}, {"filename": "/assets/sprites/player_jump.png", "start": 60624, "end": 60847}, {"filename": "/assets/sprites/player_move.png", "start": 60847, "end": 61093}, {"filename": "/assets/sprites/player_roll.png", "start": 61093, "end": 61502}, {"filename": "/assets/tiles/ground.png", "start": 61502, "end": 61615}, {"filename": "/assets/tiles/ground_blood1.png", "start": 61615, "end": 61750}, {"filename": "/assets/tiles/ground_blood2.png", "start": 61750, "end": 61900}, {"filename": "/assets/tiles/ground_blood3.png", "start": 61900, "end": 62029}], "remote_package_size": 62029});
 
   })();
 
-// end include: /tmp/tmpykhdczsc.js
-// include: /tmp/tmpwpbb9um9.js
+// end include: /tmp/tmpbwpcqnfa.js
+// include: /tmp/tmp0q27e0zc.js
 
     // All the pre-js content up to here must remain later on, we need to run
     // it.
     if ((typeof ENVIRONMENT_IS_WASM_WORKER != 'undefined' && ENVIRONMENT_IS_WASM_WORKER) || (typeof ENVIRONMENT_IS_PTHREAD != 'undefined' && ENVIRONMENT_IS_PTHREAD) || (typeof ENVIRONMENT_IS_AUDIO_WORKLET != 'undefined' && ENVIRONMENT_IS_AUDIO_WORKLET)) Module['preRun'] = [];
     var necessaryPreJSTasks = Module['preRun'].slice();
-  // end include: /tmp/tmpwpbb9um9.js
-// include: /tmp/tmpgitgf2pv.js
+  // end include: /tmp/tmp0q27e0zc.js
+// include: /tmp/tmppdlcunpe.js
 
     if (!Module['preRun']) throw 'Module.preRun should exist because file support used it; did a pre-js delete it?';
     necessaryPreJSTasks.forEach((task) => {
       if (Module['preRun'].indexOf(task) < 0) throw 'All preRun tasks that exist before user pre-js code should remain after; did you replace Module or modify Module.preRun?';
     });
-  // end include: /tmp/tmpgitgf2pv.js
+  // end include: /tmp/tmppdlcunpe.js
 
 
 var arguments_ = [];
@@ -8974,6 +8974,12 @@ var stringToUTF8Array = (str, heap, outIdx, maxBytesToWrite) => {
       GLFW.hints[target] = hint;
     };
 
+  function _pow(...args
+  ) {
+  abort('missing function: pow');
+  }
+  _pow.stub = true;
+
   function _rand_bytes(...args
   ) {
   abort('missing function: rand_bytes');
@@ -9485,48 +9491,48 @@ function checkIncomingModuleAPI() {
   ignoredModuleProp('loadSplitModule');
 }
 var ASM_CONSTS = {
-  200072: () => { if (document.fullscreenElement) return 1; },  
- 200118: () => { return document.getElementById('canvas').width; },  
- 200170: () => { return parseInt(document.getElementById('canvas').style.width); },  
- 200238: () => { document.exitFullscreen(); },  
- 200265: () => { setTimeout(function() { Module.requestFullscreen(false, false); }, 100); },  
- 200338: () => { if (document.fullscreenElement) return 1; },  
- 200384: () => { return document.getElementById('canvas').width; },  
- 200436: () => { return screen.width; },  
- 200461: () => { document.exitFullscreen(); },  
- 200488: () => { setTimeout(function() { Module.requestFullscreen(false, true); setTimeout(function() { canvas.style.width="unset"; }, 100); }, 100); },  
- 200621: () => { return window.innerWidth; },  
- 200647: () => { return window.innerHeight; },  
- 200674: () => { if (document.fullscreenElement) return 1; },  
- 200720: () => { return document.getElementById('canvas').width; },  
- 200772: () => { return parseInt(document.getElementById('canvas').style.width); },  
- 200840: () => { if (document.fullscreenElement) return 1; },  
- 200886: () => { return document.getElementById('canvas').width; },  
- 200938: () => { return screen.width; },  
- 200963: () => { return window.innerWidth; },  
- 200989: () => { return window.innerHeight; },  
- 201016: () => { if (document.fullscreenElement) return 1; },  
- 201062: () => { return document.getElementById('canvas').width; },  
- 201114: () => { return screen.width; },  
- 201139: () => { document.exitFullscreen(); },  
- 201166: () => { if (document.fullscreenElement) return 1; },  
- 201212: () => { return document.getElementById('canvas').width; },  
- 201264: () => { return parseInt(document.getElementById('canvas').style.width); },  
- 201332: () => { document.exitFullscreen(); },  
- 201359: ($0) => { document.getElementById('canvas').style.opacity = $0; },  
- 201417: () => { return screen.width; },  
- 201442: () => { return screen.height; },  
- 201468: () => { return window.screenX; },  
- 201495: () => { return window.screenY; },  
- 201522: ($0) => { navigator.clipboard.writeText(UTF8ToString($0)); },  
- 201575: ($0) => { document.getElementById("canvas").style.cursor = UTF8ToString($0); },  
- 201646: () => { document.getElementById('canvas').style.cursor = 'none'; },  
- 201703: ($0, $1, $2, $3) => { try { navigator.getGamepads()[$0].vibrationActuator.playEffect('dual-rumble', { startDelay: 0, duration: $3, weakMagnitude: $1, strongMagnitude: $2 }); } catch (e) { try { navigator.getGamepads()[$0].hapticActuators[0].pulse($2, $3); } catch (e) { } } },  
- 201959: ($0) => { document.getElementById('canvas').style.cursor = UTF8ToString($0); },  
- 202030: () => { if (document.fullscreenElement) return 1; },  
- 202076: () => { return window.innerWidth; },  
- 202102: () => { return window.innerHeight; },  
- 202129: () => { if (document.pointerLockElement) return 1; }
+  200648: () => { if (document.fullscreenElement) return 1; },  
+ 200694: () => { return document.getElementById('canvas').width; },  
+ 200746: () => { return parseInt(document.getElementById('canvas').style.width); },  
+ 200814: () => { document.exitFullscreen(); },  
+ 200841: () => { setTimeout(function() { Module.requestFullscreen(false, false); }, 100); },  
+ 200914: () => { if (document.fullscreenElement) return 1; },  
+ 200960: () => { return document.getElementById('canvas').width; },  
+ 201012: () => { return screen.width; },  
+ 201037: () => { document.exitFullscreen(); },  
+ 201064: () => { setTimeout(function() { Module.requestFullscreen(false, true); setTimeout(function() { canvas.style.width="unset"; }, 100); }, 100); },  
+ 201197: () => { return window.innerWidth; },  
+ 201223: () => { return window.innerHeight; },  
+ 201250: () => { if (document.fullscreenElement) return 1; },  
+ 201296: () => { return document.getElementById('canvas').width; },  
+ 201348: () => { return parseInt(document.getElementById('canvas').style.width); },  
+ 201416: () => { if (document.fullscreenElement) return 1; },  
+ 201462: () => { return document.getElementById('canvas').width; },  
+ 201514: () => { return screen.width; },  
+ 201539: () => { return window.innerWidth; },  
+ 201565: () => { return window.innerHeight; },  
+ 201592: () => { if (document.fullscreenElement) return 1; },  
+ 201638: () => { return document.getElementById('canvas').width; },  
+ 201690: () => { return screen.width; },  
+ 201715: () => { document.exitFullscreen(); },  
+ 201742: () => { if (document.fullscreenElement) return 1; },  
+ 201788: () => { return document.getElementById('canvas').width; },  
+ 201840: () => { return parseInt(document.getElementById('canvas').style.width); },  
+ 201908: () => { document.exitFullscreen(); },  
+ 201935: ($0) => { document.getElementById('canvas').style.opacity = $0; },  
+ 201993: () => { return screen.width; },  
+ 202018: () => { return screen.height; },  
+ 202044: () => { return window.screenX; },  
+ 202071: () => { return window.screenY; },  
+ 202098: ($0) => { navigator.clipboard.writeText(UTF8ToString($0)); },  
+ 202151: ($0) => { document.getElementById("canvas").style.cursor = UTF8ToString($0); },  
+ 202222: () => { document.getElementById('canvas').style.cursor = 'none'; },  
+ 202279: ($0, $1, $2, $3) => { try { navigator.getGamepads()[$0].vibrationActuator.playEffect('dual-rumble', { startDelay: 0, duration: $3, weakMagnitude: $1, strongMagnitude: $2 }); } catch (e) { try { navigator.getGamepads()[$0].hapticActuators[0].pulse($2, $3); } catch (e) { } } },  
+ 202535: ($0) => { document.getElementById('canvas').style.cursor = UTF8ToString($0); },  
+ 202606: () => { if (document.fullscreenElement) return 1; },  
+ 202652: () => { return window.innerWidth; },  
+ 202678: () => { return window.innerHeight; },  
+ 202705: () => { if (document.pointerLockElement) return 1; }
 };
 
 // Imports from the Wasm binary.
@@ -10177,6 +10183,8 @@ var wasmImports = {
   glfwTerminate: _glfwTerminate,
   /** @export */
   glfwWindowHint: _glfwWindowHint,
+  /** @export */
+  pow: _pow,
   /** @export */
   rand_bytes: _rand_bytes,
   /** @export */

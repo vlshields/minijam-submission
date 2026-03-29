@@ -230,6 +230,10 @@ draw_player_hud :: proc(p: ^Player) {
 	OUTLINE    :: raylib.Color{0, 0, 0, 255}
 	FILL_COLOR :: raylib.Color{0x33, 0xFF, 0x66, 0xFF}
 
+	// HP text to the right of the bar
+	hp_text := fmt.ctprintf("%d/100", i32(p.hp))
+	raylib.DrawText(hp_text, BAR_X + BAR_W + 3, BAR_Y - 1, 8, FILL_COLOR)
+
 	// Black outline
 	raylib.DrawRectangle(BAR_X - 1, BAR_Y - 1, BAR_W + 2, BAR_H + 2, OUTLINE)
 	// Green fill based on current HP

@@ -10,6 +10,7 @@ import "core:strings"
 Game_Phase :: enum {
 	Main_Menu,
 	Playing,
+	Paused,
 	Round_Won,
 	Game_Over,
 }
@@ -42,6 +43,10 @@ Game_State :: struct {
 	bp_drain_timer: f32,
 	phase_timer:    f32,
 	enemy_scale:    f32,
+
+	// Pause menu
+	pause_selection:     int,
+	pause_show_controls: bool,
 
 	// Main menu
 	menu_selection:  int,
@@ -381,6 +386,8 @@ update :: proc() {
 		update_main_menu(dt)
 	case .Playing:
 		update_playing(dt)
+	case .Paused:
+		update_paused(dt)
 	case .Round_Won:
 		update_round_won(dt)
 	case .Game_Over:
@@ -396,6 +403,8 @@ update :: proc() {
 		draw_main_menu()
 	case .Playing:
 		draw_playing()
+	case .Paused:
+		draw_paused()
 	case .Round_Won:
 		draw_round_won()
 	case .Game_Over:
@@ -575,6 +584,13 @@ draw_main_menu :: proc() {
 
 @(private = "file")
 update_playing :: proc(dt: f32) {
+	if raylib.IsKeyPressed(.ESCAPE) {
+		gs.phase = .Paused
+		gs.pause_selection = 0
+		gs.pause_show_controls = false
+		return
+	}
+
 	// BP drain
 	gs.bp_drain_timer -= dt
 	if gs.bp_drain_timer <= 0 {
@@ -626,6 +642,128 @@ draw_playing :: proc() {
 
 	draw_player_hud(&gs.player)
 	draw_bp_hud(gs.blood_points, gs.round_timer, gs.current_round)
+}
+
+// ---------------------------------------------------------------------------
+// Phase: Paused
+// ---------------------------------------------------------------------------
+
+@(private = "file")
+PAUSE_ITEMS :: [3]cstring{"CONTINUE", "CONTROLS", "QUIT"}
+
+@(private = "file")
+update_paused :: proc(dt: f32) {
+	if gs.pause_show_controls {
+		if raylib.IsKeyPressed(.ESCAPE) || raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+			gs.pause_show_controls = false
+		}
+		return
+	}
+
+	if raylib.IsKeyPressed(.ESCAPE) {
+		gs.phase = .Playing
+		return
+	}
+
+	if raylib.IsKeyPressed(.DOWN) || raylib.IsKeyPressed(.S) {
+		gs.pause_selection = (gs.pause_selection + 1) %% len(PAUSE_ITEMS)
+	}
+	if raylib.IsKeyPressed(.UP) || raylib.IsKeyPressed(.W) {
+		gs.pause_selection = (gs.pause_selection - 1) %% len(PAUSE_ITEMS)
+	}
+
+	if raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+		switch gs.pause_selection {
+		case 0: // Continue
+			gs.phase = .Playing
+		case 1: // Controls
+			gs.pause_show_controls = true
+		case 2: // Quit
+			unload_map_data()
+			gs.phase = .Main_Menu
+			gs.menu_selection = 0
+			gs.menu_timer = 0
+			gs.menu_fall_frame = 0
+			gs.menu_fall_timer = 0
+		}
+	}
+}
+
+@(private = "file")
+draw_paused :: proc() {
+	// Draw the game world underneath
+	draw_playing()
+
+	// Dim overlay
+	raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, 180})
+
+	if gs.pause_show_controls {
+		draw_controls_screen()
+		return
+	}
+
+	title: cstring = "PAUSED"
+	title_size :: i32(20)
+	title_w := raylib.MeasureText(title, title_size)
+	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, 80, title_size, raylib.WHITE)
+
+	item_size :: i32(10)
+	item_base_y :: i32(140)
+	item_spacing :: i32(20)
+
+	for item, i in PAUSE_ITEMS {
+		item_w := raylib.MeasureText(item, item_size)
+		item_x := (SCREEN_WIDTH - item_w) / 2
+		item_y := item_base_y + i32(i) * item_spacing
+
+		color := raylib.Color{150, 150, 150, 255}
+		if i == gs.pause_selection {
+			color = raylib.WHITE
+		}
+		raylib.DrawText(item, item_x, item_y, item_size, color)
+	}
+
+	items := PAUSE_ITEMS
+	sel_item := items[gs.pause_selection]
+	sel_w := raylib.MeasureText(sel_item, item_size)
+	arrow_x := (SCREEN_WIDTH - sel_w) / 2 - 12
+	arrow_y := item_base_y + i32(gs.pause_selection) * item_spacing
+	raylib.DrawText(">", arrow_x, arrow_y, item_size, raylib.WHITE)
+}
+
+@(private = "file")
+draw_controls_screen :: proc() {
+	title: cstring = "CONTROLS"
+	title_size :: i32(16)
+	title_w := raylib.MeasureText(title, title_size)
+	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, 50, title_size, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
+
+	label_size :: i32(10)
+	col_label_x :: i32(140)
+	col_key_x   :: i32(360)
+	row_y       :: i32(90)
+	row_h       :: i32(18)
+
+	controls := [?][2]cstring{
+		{"Move", "A / D  or  LEFT / RIGHT"},
+		{"Jump", "W  or  UP"},
+		{"Dash", "SPACE"},
+		{"Quick Attack", "J  or  LEFT CLICK"},
+		{"Secondary Scythe Attack", "K  or  RIGHT CLICK"},
+		{"Summon Blood Scythe", "R"},
+		{"Summon Blood Fangs", "F"},
+		{"Pause", "ESC"},
+	}
+
+	for entry, i in controls {
+		y := row_y + i32(i) * row_h
+		raylib.DrawText(entry[0], col_label_x, y, label_size, raylib.Color{200, 200, 200, 255})
+		raylib.DrawText(entry[1], col_key_x, y, label_size, raylib.WHITE)
+	}
+
+	back: cstring = "Press ESC or ENTER to go back"
+	back_w := raylib.MeasureText(back, label_size)
+	raylib.DrawText(back, (SCREEN_WIDTH - back_w) / 2, 250, label_size, raylib.Color{150, 150, 150, 255})
 }
 
 // ---------------------------------------------------------------------------

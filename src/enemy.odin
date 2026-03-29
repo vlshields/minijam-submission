@@ -148,7 +148,7 @@ update_enemies :: proc(
 			anim_done := advance_enemy_oneshot(e, pool.move_frames, dt)
 
 			// Check collision with player
-			if check_enemy_player_collision(e, player) {
+			if check_enemy_player_collision(e, player) && !player.dashing {
 				player.hp -= ENEMY_DAMAGE * scale
 				player.damage_flash_timer = DAMAGE_FLASH_DURATION
 				if player.hp < 0 {
@@ -542,7 +542,7 @@ update_devils :: proc(
 			if d.bolt_active && !d.bolt_dealt_damage {
 				bolt_rect := devil_get_bolt_rect(d)
 				player_rect := get_hitbox(player)
-				if raylib.CheckCollisionRecs(bolt_rect, player_rect) {
+				if raylib.CheckCollisionRecs(bolt_rect, player_rect) && !player.dashing {
 					player.hp -= DEVIL_DAMAGE * scale
 					player.damage_flash_timer = DAMAGE_FLASH_DURATION
 					if player.hp < 0 {
@@ -1074,7 +1074,7 @@ update_flamewardens :: proc(
 			if !fw.flame_dealt_damage {
 				flame_rect := get_flame_hitbox(fw)
 				player_rect := get_hitbox(player)
-				if raylib.CheckCollisionRecs(flame_rect, player_rect) {
+				if raylib.CheckCollisionRecs(flame_rect, player_rect) && !player.dashing {
 					player.hp -= FW_FLAME_DAMAGE * scale
 					player.damage_flash_timer = DAMAGE_FLASH_DURATION
 					if player.hp < 0 {
