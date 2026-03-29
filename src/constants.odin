@@ -6,7 +6,7 @@ TILE_SIZE     :: 16
 TARGET_FPS    :: 60
 
 PLAYER_SPEED   :: 120.0
-GRAVITY        :: 600.0
+GRAVITY        :: 500.0
 JUMP_VELOCITY  :: -220.0
 MAX_FALL_SPEED :: 400.0
 MAX_JUMPS      :: 2
@@ -17,10 +17,10 @@ PLAYER_HITBOX_H :: 14
 SPRITE_SRC_SIZE :: 16
 SPRITE_DST_SIZE :: 16
 
-ANIM_FRAME_TIME :: 0.12
+ANIM_FRAME_TIME :: 0.172
 
 DASH_SPEED         :: 800.0
-DASH_DURATION      :: 0.25
+DASH_DURATION      :: 0.15
 DASH_COOLDOWN      :: 0.5
 MAX_DASH_PARTICLES :: 64
 
@@ -32,6 +32,15 @@ COMPANION_LERP_SPEED :: 10.0
 COMPANION_ATTACK_COOLDOWN :: 2.0
 COMPANION_ONESHOT_FPS     :: 12.0
 COMPANION_DAMAGE          :: 21.0
+
+// Blood scythe
+SCYTHE_SRC_SIZE        :: 32
+SCYTHE_OFFSET_X        :: 14.0
+SCYTHE_OFFSET_Y        :: 0.0
+SCYTHE_LERP_SPEED      :: 10.0
+SCYTHE_ATTACK_COOLDOWN :: 1.0
+SCYTHE_ONESHOT_FPS     :: 18.0
+SCYTHE_DAMAGE          :: 21.0
 
 // Player combat
 PLAYER_MAX_HP :: 100.0
@@ -46,6 +55,42 @@ ENEMY_SPEED            :: 130.0
 ENEMY_ATTACK_COOLDOWN  :: 4.0
 ENEMY_ANIM_FPS         :: 12.0
 MAX_ENEMIES            :: 32
+
+// Enemy – flamewarden
+FW_SRC_SIZE            :: 16
+FW_HITBOX_W            :: 12
+FW_HITBOX_H            :: 14
+FW_HP                  :: 42.0
+FW_FLAME_DAMAGE        :: 21.0
+FW_PATROL_SPEED        :: 40.0
+FW_ATTACK_COOLDOWN     :: 1.5
+FW_ANIM_FPS            :: 10.0
+FW_FLAME_LOOP_DURATION :: 1.0
+FW_FLAME_TRACK_SPEED   :: 80.0 // pixels/sec flame chases player
+FW_FLAME_SRC_W         :: 16
+FW_FLAME_SRC_H         :: 32
+MAX_FLAMEWARDENS       :: 16
+
+// Quick attack
+QUICK_ATTACK_SRC_SIZE     :: 32
+QUICK_ATTACK_FPS          :: 12.0
+QUICK_ATTACK_DAMAGE       :: 8.0
+QUICK_ATTACK_COOLDOWN     :: 0.0
+QUICK_ATTACK_CHAIN_WINDOW :: 3
+QUICK_ATTACK_HIT_FRAME    :: 3
+
+// Enemy – devil
+DEVIL_SRC_SIZE         :: 16
+DEVIL_HITBOX_W         :: 12
+DEVIL_HITBOX_H         :: 14
+DEVIL_HP               :: 40.0
+DEVIL_DAMAGE           :: 13.0
+DEVIL_SPEED            :: 60.0
+DEVIL_ATTACK_RANGE     :: 32.0
+DEVIL_ATTACK_COOLDOWN  :: 2.0
+DEVIL_ANIM_FPS         :: 10.0
+DEVIL_BOLT_SRC_SIZE    :: 32
+MAX_DEVILS             :: 16
 
 // Damage flash
 DAMAGE_FLASH_DURATION  :: 0.15

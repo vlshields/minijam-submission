@@ -12,7 +12,10 @@ Game_State :: struct {
 	camera:         raylib.Camera2D,
 	player:         Player,
 	companion:      Companion,
+	blood_scythe:   Blood_Scythe,
 	enemies:            Enemy_Pool,
+	flamewardens:       FW_Pool,
+	devils:             Devil_Pool,
 	white_flash_shader: raylib.Shader,
 	render_target:      raylib.RenderTexture2D,
 	screen_scale:   f32,
@@ -127,6 +130,7 @@ init :: proc() {
 
 	init_player(&gs.player, spawn_pos)
 	init_companion(&gs.companion)
+	init_blood_scythe(&gs.blood_scythe)
 
 	// Spawn enemies at 'b' tiles
 	init_enemies(&gs.enemies)
@@ -144,6 +148,50 @@ init :: proc() {
 							f32(ry) * TILE_SIZE,
 						}
 						spawn_enemy(&gs.enemies, enemy_pos)
+					}
+				}
+			}
+		}
+	}
+
+	// Spawn flamewardens at 'g' tiles
+	init_flamewardens(&gs.flamewardens)
+	for row, ry in gs.map_data.grid {
+		for cell, cx in row {
+			if cell.symbol == 'g' {
+				td, has_meta := gs.map_data.metadata['g']
+				if has_meta {
+					spawn_key := dm.extract_kv(td.other, "spawn_point")
+					is_fw := spawn_key == "enemy_flamewarden"
+					delete(spawn_key)
+					if is_fw {
+						fw_pos := raylib.Vector2{
+							f32(cx) * TILE_SIZE + TILE_SIZE / 2,
+							f32(ry) * TILE_SIZE,
+						}
+						spawn_flamewarden(&gs.flamewardens, fw_pos)
+					}
+				}
+			}
+		}
+	}
+
+	// Spawn devils at 'd' tiles
+	init_devils(&gs.devils)
+	for row, ry in gs.map_data.grid {
+		for cell, cx in row {
+			if cell.symbol == 'd' {
+				td, has_meta := gs.map_data.metadata['d']
+				if has_meta {
+					spawn_key := dm.extract_kv(td.other, "spawn_point")
+					is_devil := spawn_key == "enemy_devil"
+					delete(spawn_key)
+					if is_devil {
+						devil_pos := raylib.Vector2{
+							f32(cx) * TILE_SIZE + TILE_SIZE / 2,
+							f32(ry) * TILE_SIZE,
+						}
+						spawn_devil(&gs.devils, devil_pos)
 					}
 				}
 			}
@@ -189,9 +237,13 @@ update :: proc() {
 		dt = 0.05
 	}
 
+	update_quick_attack(&gs.player, &gs.companion, &gs.blood_scythe, dt)
 	update_player(&gs.player, &gs.map_data, dt)
-	update_companion(&gs.companion, &gs.player, dt)
-	update_enemies(&gs.enemies, &gs.player, &gs.companion, &gs.camera, &gs.map_data, dt)
+	update_companion(&gs.companion, &gs.player, &gs.blood_scythe, dt)
+	update_blood_scythe(&gs.blood_scythe, &gs.player, &gs.companion, dt)
+	update_enemies(&gs.enemies, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, dt)
+	update_flamewardens(&gs.flamewardens, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, dt)
+	update_devils(&gs.devils, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, dt)
 	update_camera(dt)
 
 	// Draw to virtual render target
@@ -201,8 +253,11 @@ update :: proc() {
 	raylib.BeginMode2D(gs.camera)
 	draw_map()
 	draw_enemies(&gs.enemies, gs.white_flash_shader)
+	draw_flamewardens(&gs.flamewardens, gs.white_flash_shader)
+	draw_devils(&gs.devils, gs.white_flash_shader)
 	draw_player(&gs.player, gs.white_flash_shader)
 	draw_companion(&gs.companion, &gs.player)
+	draw_blood_scythe(&gs.blood_scythe, &gs.player)
 	raylib.EndMode2D()
 
 	draw_player_hud(&gs.player)
@@ -239,7 +294,10 @@ shutdown :: proc() {
 	delete(gs.tile_textures)
 	unload_player(&gs.player)
 	unload_companion(&gs.companion)
+	unload_blood_scythe(&gs.blood_scythe)
 	unload_enemies(&gs.enemies)
+	unload_flamewardens(&gs.flamewardens)
+	unload_devils(&gs.devils)
 	dm.destroy_map(&gs.map_data)
 	raylib.CloseWindow()
 }
@@ -327,7 +385,7 @@ draw_map :: proc() {
 			draw_x := f32(cx) * TILE_SIZE
 			draw_y := f32(ry) * TILE_SIZE
 
-			if cell.symbol == '.' || cell.symbol == 's' || cell.symbol == 'b' {
+			if cell.symbol == '.' || cell.symbol == 's' || cell.symbol == 'b' || cell.symbol == 'g' || cell.symbol == 'd' {
 				continue
 			}
 
