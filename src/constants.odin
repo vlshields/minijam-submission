@@ -96,6 +96,10 @@ MAX_DEVILS             :: 16
 // Damage flash
 DAMAGE_FLASH_DURATION  :: 0.15
 
+// Screenshake (combat)
+SCREENSHAKE_DURATION  :: 0.1
+SCREENSHAKE_MAGNITUDE :: 1.5
+
 // Audio
 FOOTSTEP_INTERVAL :: 0.3
 

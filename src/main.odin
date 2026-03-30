@@ -80,6 +80,9 @@ Game_State :: struct {
 	cutscene_line:   int,
 	cutscene_shake:  f32,
 	cutscene_played: bool,
+
+	// Combat screenshake
+	screen_shake: f32,
 }
 
 @(private = "file")
@@ -916,6 +919,9 @@ update_playing :: proc(dt: f32) {
 		}
 	} else {
 		gs.footstep_timer = 0
+		if raylib.IsSoundPlaying(gs.sfx_footsteps) {
+			raylib.StopSound(gs.sfx_footsteps)
+		}
 	}
 
 	update_blood_scythe(&gs.blood_scythe, &gs.player, &gs.companion, dt)
@@ -932,10 +938,33 @@ update_playing :: proc(dt: f32) {
 	update_flamewardens(&gs.flamewardens, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, dt)
 	update_devils(&gs.devils, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, dt)
 
-	// SFX: player got hit
+	// SFX: player got hit + screenshake
 	if prev_player_flash <= 0 && gs.player.damage_flash_timer > 0 {
 		raylib.PlaySound(gs.sfx_hit)
+		gs.screen_shake = SCREENSHAKE_DURATION
 	}
+
+	// Screenshake: any enemy just got hit
+	if gs.screen_shake <= 0 {
+		hit_detected: bool
+		for &e in gs.enemies.enemies[:gs.enemies.count] {
+			if e.state != .Dead && e.damage_flash_timer == DAMAGE_FLASH_DURATION { hit_detected = true; break }
+		}
+		if !hit_detected {
+			for &fw in gs.flamewardens.wardens[:gs.flamewardens.count] {
+				if fw.state != .Dead && fw.damage_flash_timer == DAMAGE_FLASH_DURATION { hit_detected = true; break }
+			}
+		}
+		if !hit_detected {
+			for &d in gs.devils.devils[:gs.devils.count] {
+				if d.state != .Dead && d.damage_flash_timer == DAMAGE_FLASH_DURATION { hit_detected = true; break }
+			}
+		}
+		if hit_detected {
+			gs.screen_shake = SCREENSHAKE_DURATION
+		}
+	}
+
 	update_camera(dt)
 }
 
@@ -1321,6 +1350,17 @@ update_camera :: proc(dt: f32) {
 	}
 	if gs.camera.target.y > map_h - half_h {
 		gs.camera.target.y = map_h - half_h
+	}
+
+	// Combat screenshake
+	if gs.screen_shake > 0 {
+		gs.screen_shake -= dt
+		if gs.screen_shake > 0 {
+			intensity := gs.screen_shake / SCREENSHAKE_DURATION
+			mag := SCREENSHAKE_MAGNITUDE * intensity
+			gs.camera.target.x += rand.float32_range(-mag, mag)
+			gs.camera.target.y += rand.float32_range(-mag, mag)
+		}
 	}
 }
 

@@ -234,7 +234,7 @@ draw_player_hud :: proc(p: ^Player) {
 	raylib.DrawText("Abaddon", BAR_X, BAR_Y - 10, 8, raylib.WHITE)
 
 	// HP text to the right of the bar
-	hp_text := fmt.ctprintf("%d/100", i32(p.hp))
+	hp_text := fmt.ctprintf("%d/%d", i32(p.hp), i32(PLAYER_MAX_HP))
 	raylib.DrawText(hp_text, BAR_X + BAR_W + 3, BAR_Y - 1, 8, FILL_COLOR)
 
 	// Black outline
