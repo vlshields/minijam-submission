@@ -1076,37 +1076,44 @@ draw_controls_screen :: proc() {
 	row_y       :: i32(90)
 	row_h       :: i32(18)
 
-	col_gp_x :: i32(480)
 	gp := gamepad_active()
 
-	controls := [?][3]cstring{
-		{"Move",                    "A / D  or  LEFT / RIGHT", "Left Stick"},
-		{"Jump",                    "W  or  UP",               "A"},
-		{"Dash",                    "SPACE",                   "B"},
-		{"Quick Attack",            "J  or  LEFT CLICK",       "X"},
-		{"Secondary Scythe Attack", "K  or  RIGHT CLICK",      "Y"},
-		{"Summon Blood Scythe",     "R",                       "LT (select w/ RB)"},
-		{"Summon Blood Fangs",      "F",                       "LT (select w/ RB)"},
-		{"Pause",                   "ESC",                     "START"},
+	controls_kb := [?][2]cstring{
+		{"Move",                    "A / D  or  LEFT / RIGHT"},
+		{"Jump",                    "W  or  UP"},
+		{"Dash",                    "SPACE"},
+		{"Quick Attack",            "J  or  LEFT CLICK"},
+		{"Secondary Scythe Attack", "K  or  RIGHT CLICK"},
+		{"Summon Blood Scythe",     "R"},
+		{"Summon Blood Fangs",      "F"},
+		{"Pause",                   "ESC"},
+	}
+
+	controls_gp := [?][2]cstring{
+		{"Move",                    "Left Stick"},
+		{"Jump",                    "A"},
+		{"Dash",                    "B"},
+		{"Quick Attack",            "X"},
+		{"Secondary Scythe Attack", "Y"},
+		{"Summon Companion",        "LT (select w/ RB)"},
+		{"Pause",                   "START"},
 	}
 
 	if gp {
-		kb_header: cstring = "Keyboard"
-		gp_header: cstring = "Gamepad"
-		raylib.DrawText(kb_header, col_key_x, row_y - row_h, label_size, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
-		raylib.DrawText(gp_header, col_gp_x, row_y - row_h, label_size, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
-	}
-
-	for entry, i in controls {
-		y := row_y + i32(i) * row_h
-		raylib.DrawText(entry[0], col_label_x, y, label_size, raylib.Color{200, 200, 200, 255})
-		raylib.DrawText(entry[1], col_key_x, y, label_size, raylib.WHITE)
-		if gp {
-			raylib.DrawText(entry[2], col_gp_x, y, label_size, raylib.WHITE)
+		for entry, i in controls_gp {
+			y := row_y + i32(i) * row_h
+			raylib.DrawText(entry[0], col_label_x, y, label_size, raylib.Color{200, 200, 200, 255})
+			raylib.DrawText(entry[1], col_key_x, y, label_size, raylib.WHITE)
+		}
+	} else {
+		for entry, i in controls_kb {
+			y := row_y + i32(i) * row_h
+			raylib.DrawText(entry[0], col_label_x, y, label_size, raylib.Color{200, 200, 200, 255})
+			raylib.DrawText(entry[1], col_key_x, y, label_size, raylib.WHITE)
 		}
 	}
 
-	back: cstring = gp ? "Press ESC / B to go back" : "Press ESC or ENTER to go back"
+	back: cstring = gp ? "Press B to go back" : "Press ESC or ENTER to go back"
 	back_w := raylib.MeasureText(back, label_size)
 	raylib.DrawText(back, (SCREEN_WIDTH - back_w) / 2, 250, label_size, raylib.Color{150, 150, 150, 255})
 }
