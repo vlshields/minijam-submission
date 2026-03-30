@@ -11,6 +11,7 @@ Enemy_State :: enum {
 	Idle,
 	Attacking,
 	Cooldown,
+	Dying,
 	Dead,
 }
 
@@ -31,12 +32,14 @@ Enemy :: struct {
 }
 
 Enemy_Pool :: struct {
-	enemies:     [MAX_ENEMIES]Enemy,
-	count:       int,
-	idle_tex:    raylib.Texture2D,
-	move_tex:    raylib.Texture2D,
-	idle_frames: int,
-	move_frames: int,
+	enemies:      [MAX_ENEMIES]Enemy,
+	count:        int,
+	idle_tex:     raylib.Texture2D,
+	move_tex:     raylib.Texture2D,
+	death_tex:    raylib.Texture2D,
+	idle_frames:  int,
+	move_frames:  int,
+	death_frames: int,
 }
 
 // ---------------------------------------------------------------------------
@@ -46,8 +49,10 @@ Enemy_Pool :: struct {
 init_enemies :: proc(pool: ^Enemy_Pool) {
 	pool.idle_tex = raylib.LoadTexture("assets/sprites/enemy_flameball_idle.png")
 	pool.move_tex = raylib.LoadTexture("assets/sprites/enemy_flameball_move.png")
+	pool.death_tex = raylib.LoadTexture("assets/sprites/enemy_flameball_death.png")
 	pool.idle_frames = int(pool.idle_tex.width) / ENEMY_SRC_SIZE
 	pool.move_frames = int(pool.move_tex.width) / ENEMY_SRC_SIZE
+	pool.death_frames = int(pool.death_tex.width) / ENEMY_SRC_SIZE
 	pool.count = 0
 }
 
@@ -72,6 +77,7 @@ spawn_enemy :: proc(pool: ^Enemy_Pool, pos: raylib.Vector2) {
 unload_enemies :: proc(pool: ^Enemy_Pool) {
 	raylib.UnloadTexture(pool.idle_tex)
 	raylib.UnloadTexture(pool.move_tex)
+	raylib.UnloadTexture(pool.death_tex)
 }
 
 
@@ -100,6 +106,12 @@ update_enemies :: proc(
 	for i := 0; i < pool.count; i += 1 {
 		e := &pool.enemies[i]
 		if e.state == .Dead {
+			continue
+		}
+		if e.state == .Dying {
+			if advance_enemy_oneshot(e, pool.death_frames, dt) {
+				e.state = .Dead
+			}
 			continue
 		}
 
@@ -156,7 +168,11 @@ update_enemies :: proc(
 				if player.hp < 0 {
 					player.hp = 0
 				}
-				e.state = .Dead
+				e.state = .Dying
+				e.current_frame = 0
+				e.anim_timer = 0
+				e.vel = {}
+				e.damage_flash_timer = 0
 				continue
 			}
 
@@ -187,7 +203,7 @@ update_enemies :: proc(
 				e.anim_timer = 0
 			}
 
-		case .Dead:
+		case .Dying, .Dead:
 		}
 
 		// Reset hit flags when attacks end
@@ -195,7 +211,7 @@ update_enemies :: proc(
 		if scythe.state != .Attacking && scythe.state != .Quick_Attacking { e.hit_by_scythe = false }
 
 		// Companion attack collision
-		if e.state != .Dead && companion.state == .Attacking && !e.hit_by_companion {
+		if e.state != .Dead && e.state != .Dying && companion.state == .Attacking && !e.hit_by_companion {
 			comp_rect := get_companion_rect(companion, player)
 			ehb := get_enemy_hitbox(e)
 			if raylib.CheckCollisionRecs(comp_rect, ehb) {
@@ -204,14 +220,18 @@ update_enemies :: proc(
 				e.hit_by_companion = true
 				raylib.PlaySound(sfx_hit)
 				if e.hp <= 0 {
-					e.state = .Dead
+					e.state = .Dying
+					e.current_frame = 0
+					e.anim_timer = 0
+					e.vel = {}
+					e.damage_flash_timer = 0
 					bp^ += BP_FLAMEBALL_KILL
 				}
 			}
 		}
 
 		// Blood scythe attack collision
-		if e.state != .Dead && (scythe.state == .Attacking || scythe.state == .Quick_Attacking) && !e.hit_by_scythe {
+		if e.state != .Dead && e.state != .Dying && (scythe.state == .Attacking || scythe.state == .Quick_Attacking) && !e.hit_by_scythe {
 			scythe_rect := get_scythe_rect(scythe, player)
 			ehb := get_enemy_hitbox(e)
 			if raylib.CheckCollisionRecs(scythe_rect, ehb) {
@@ -220,14 +240,18 @@ update_enemies :: proc(
 				e.hit_by_scythe = true
 				raylib.PlaySound(sfx_hit)
 				if e.hp <= 0 {
-					e.state = .Dead
+					e.state = .Dying
+					e.current_frame = 0
+					e.anim_timer = 0
+					e.vel = {}
+					e.damage_flash_timer = 0
 					bp^ += BP_FLAMEBALL_KILL
 				}
 			}
 		}
 
 		// Quick attack collision
-		if e.state != .Dead && player.quick_attack_damage_active {
+		if e.state != .Dead && e.state != .Dying && player.quick_attack_damage_active {
 			attack_rect := get_quick_attack_rect(player)
 			ehb := get_enemy_hitbox(e)
 			if raylib.CheckCollisionRecs(attack_rect, ehb) {
@@ -235,7 +259,11 @@ update_enemies :: proc(
 				e.damage_flash_timer = DAMAGE_FLASH_DURATION
 				raylib.PlaySound(sfx_hit)
 				if e.hp <= 0 {
-					e.state = .Dead
+					e.state = .Dying
+					e.current_frame = 0
+					e.anim_timer = 0
+					e.vel = {}
+					e.damage_flash_timer = 0
 					bp^ += BP_FLAMEBALL_KILL
 				}
 			}
@@ -266,6 +294,9 @@ draw_enemies :: proc(pool: ^Enemy_Pool, white_shader: raylib.Shader) {
 		case .Idle, .Cooldown:
 			tex = pool.idle_tex
 			max_frames = pool.idle_frames
+		case .Dying:
+			tex = pool.death_tex
+			max_frames = pool.death_frames
 		case .Dead:
 			continue
 		}
@@ -383,6 +414,7 @@ Devil_State :: enum {
 	Pursuing,
 	Attacking,
 	Cooldown,
+	Dying,
 	Dead,
 }
 
@@ -413,10 +445,12 @@ Devil_Pool :: struct {
 	move_tex:      raylib.Texture2D,
 	attack_tex:    raylib.Texture2D,
 	bolt_tex:      raylib.Texture2D,
+	death_tex:     raylib.Texture2D,
 	idle_frames:   int,
 	move_frames:   int,
 	attack_frames: int,
 	bolt_frames:   int,
+	death_frames:  int,
 }
 
 
@@ -425,10 +459,12 @@ init_devils :: proc(pool: ^Devil_Pool) {
 	pool.move_tex = raylib.LoadTexture("assets/sprites/enemy_devil_move.png")
 	pool.attack_tex = raylib.LoadTexture("assets/sprites/enemy_devil_attack.png")
 	pool.bolt_tex = raylib.LoadTexture("assets/sprites/enemy_devil_flamebolt.png")
+	pool.death_tex = raylib.LoadTexture("assets/sprites/enemy_devil_death.png")
 	pool.idle_frames = int(pool.idle_tex.width) / DEVIL_SRC_SIZE
 	pool.move_frames = int(pool.move_tex.width) / DEVIL_SRC_SIZE
 	pool.attack_frames = int(pool.attack_tex.width) / DEVIL_SRC_SIZE
 	pool.bolt_frames = int(pool.bolt_tex.width) / DEVIL_BOLT_SRC_SIZE
+	pool.death_frames = int(pool.death_tex.width) / DEVIL_SRC_SIZE
 	pool.count = 0
 }
 
@@ -458,6 +494,7 @@ unload_devils :: proc(pool: ^Devil_Pool) {
 	raylib.UnloadTexture(pool.move_tex)
 	raylib.UnloadTexture(pool.attack_tex)
 	raylib.UnloadTexture(pool.bolt_tex)
+	raylib.UnloadTexture(pool.death_tex)
 }
 
 update_devils :: proc(
@@ -484,6 +521,12 @@ update_devils :: proc(
 	for i := 0; i < pool.count; i += 1 {
 		d := &pool.devils[i]
 		if d.state == .Dead {
+			continue
+		}
+		if d.state == .Dying {
+			if devil_advance_oneshot(d, pool.death_frames, dt) {
+				d.state = .Dead
+			}
 			continue
 		}
 
@@ -580,7 +623,7 @@ update_devils :: proc(
 				d.anim_timer = 0
 			}
 
-		case .Dead:
+		case .Dying, .Dead:
 		}
 
 		// Reset hit flags when attacks end
@@ -588,7 +631,7 @@ update_devils :: proc(
 		if scythe.state != .Attacking && scythe.state != .Quick_Attacking { d.hit_by_scythe = false }
 
 		// Companion attack collision
-		if d.state != .Dead && companion.state == .Attacking && !d.hit_by_companion {
+		if d.state != .Dead && d.state != .Dying && companion.state == .Attacking && !d.hit_by_companion {
 			comp_rect := get_companion_rect(companion, player)
 			dhb := devil_get_hitbox(d)
 			if raylib.CheckCollisionRecs(comp_rect, dhb) {
@@ -597,7 +640,11 @@ update_devils :: proc(
 				d.hit_by_companion = true
 				raylib.PlaySound(sfx_hit)
 				if d.hp <= 0 {
-					d.state = .Dead
+					d.state = .Dying
+					d.current_frame = 0
+					d.anim_timer = 0
+					d.vel = {}
+					d.damage_flash_timer = 0
 					d.bolt_active = false
 					bp^ += BP_DEVIL_KILL
 				}
@@ -605,7 +652,7 @@ update_devils :: proc(
 		}
 
 		// Blood scythe collision
-		if d.state != .Dead && (scythe.state == .Attacking || scythe.state == .Quick_Attacking) && !d.hit_by_scythe {
+		if d.state != .Dead && d.state != .Dying && (scythe.state == .Attacking || scythe.state == .Quick_Attacking) && !d.hit_by_scythe {
 			scythe_rect := get_scythe_rect(scythe, player)
 			dhb := devil_get_hitbox(d)
 			if raylib.CheckCollisionRecs(scythe_rect, dhb) {
@@ -614,7 +661,11 @@ update_devils :: proc(
 				d.hit_by_scythe = true
 				raylib.PlaySound(sfx_hit)
 				if d.hp <= 0 {
-					d.state = .Dead
+					d.state = .Dying
+					d.current_frame = 0
+					d.anim_timer = 0
+					d.vel = {}
+					d.damage_flash_timer = 0
 					d.bolt_active = false
 					bp^ += BP_DEVIL_KILL
 				}
@@ -622,7 +673,7 @@ update_devils :: proc(
 		}
 
 		// Quick attack collision
-		if d.state != .Dead && player.quick_attack_damage_active {
+		if d.state != .Dead && d.state != .Dying && player.quick_attack_damage_active {
 			attack_rect := get_quick_attack_rect(player)
 			dhb := devil_get_hitbox(d)
 			if raylib.CheckCollisionRecs(attack_rect, dhb) {
@@ -630,7 +681,11 @@ update_devils :: proc(
 				d.damage_flash_timer = DAMAGE_FLASH_DURATION
 				raylib.PlaySound(sfx_hit)
 				if d.hp <= 0 {
-					d.state = .Dead
+					d.state = .Dying
+					d.current_frame = 0
+					d.anim_timer = 0
+					d.vel = {}
+					d.damage_flash_timer = 0
 					d.bolt_active = false
 					bp^ += BP_DEVIL_KILL
 				}
@@ -666,6 +721,9 @@ draw_devils :: proc(pool: ^Devil_Pool, white_shader: raylib.Shader) {
 		case .Pursuing:
 			tex = pool.move_tex
 			max_frames = pool.move_frames
+		case .Dying:
+			tex = pool.death_tex
+			max_frames = pool.death_frames
 		case .Dead:
 			continue
 		}
@@ -835,6 +893,7 @@ FW_State :: enum {
 	Attacking,
 	Attack_End,
 	Cooldown,
+	Dying,
 	Dead,
 }
 
@@ -869,12 +928,14 @@ FW_Pool :: struct {
 	flame_start_tex:      raylib.Texture2D,
 	flame_loop_tex:       raylib.Texture2D,
 	flame_end_tex:        raylib.Texture2D,
+	death_tex:            raylib.Texture2D,
 	idle_frames:          int,
 	move_frames:          int,
 	isattacking_frames:   int,
 	flame_start_frames:   int,
 	flame_loop_frames:    int,
 	flame_end_frames:     int,
+	death_frames:         int,
 }
 
 // ---------------------------------------------------------------------------
@@ -889,12 +950,14 @@ init_flamewardens :: proc(pool: ^FW_Pool) {
 	pool.flame_loop_tex = raylib.LoadTexture("assets/sprites/enemy_flamewarden_attack_loop.png")
 	pool.flame_end_tex = raylib.LoadTexture("assets/sprites/enemy_flamewarden_attack_end.png")
 
+	pool.death_tex = raylib.LoadTexture("assets/sprites/enemy_flamewarden_death.png")
 	pool.idle_frames = int(pool.idle_tex.width) / FW_SRC_SIZE
 	pool.move_frames = int(pool.move_tex.width) / FW_SRC_SIZE
 	pool.isattacking_frames = int(pool.isattacking_tex.width) / FW_SRC_SIZE
 	pool.flame_start_frames = int(pool.flame_start_tex.width) / FW_FLAME_SRC_W
 	pool.flame_loop_frames = int(pool.flame_loop_tex.width) / FW_FLAME_SRC_W
 	pool.flame_end_frames = int(pool.flame_end_tex.width) / FW_FLAME_SRC_W
+	pool.death_frames = int(pool.death_tex.width) / FW_SRC_SIZE
 	pool.count = 0
 }
 
@@ -927,6 +990,7 @@ unload_flamewardens :: proc(pool: ^FW_Pool) {
 	raylib.UnloadTexture(pool.flame_start_tex)
 	raylib.UnloadTexture(pool.flame_loop_tex)
 	raylib.UnloadTexture(pool.flame_end_tex)
+	raylib.UnloadTexture(pool.death_tex)
 }
 
 // ---------------------------------------------------------------------------
@@ -957,6 +1021,12 @@ update_flamewardens :: proc(
 	for i := 0; i < pool.count; i += 1 {
 		fw := &pool.wardens[i]
 		if fw.state == .Dead {
+			continue
+		}
+		if fw.state == .Dying {
+			if fw_advance_oneshot(fw, pool.death_frames, dt) {
+				fw.state = .Dead
+			}
 			continue
 		}
 
@@ -1130,7 +1200,7 @@ update_flamewardens :: proc(
 				fw.anim_timer = 0
 			}
 
-		case .Dead:
+		case .Dying, .Dead:
 		}
 
 		// Reset hit flags when attacks end
@@ -1138,7 +1208,7 @@ update_flamewardens :: proc(
 		if scythe.state != .Attacking && scythe.state != .Quick_Attacking { fw.hit_by_scythe = false }
 
 		// Companion attack collision
-		if fw.state != .Dead && companion.state == .Attacking && !fw.hit_by_companion {
+		if fw.state != .Dead && fw.state != .Dying && companion.state == .Attacking && !fw.hit_by_companion {
 			comp_rect := get_companion_rect(companion, player)
 			fhb := get_fw_hitbox(fw)
 			if raylib.CheckCollisionRecs(comp_rect, fhb) {
@@ -1147,7 +1217,11 @@ update_flamewardens :: proc(
 				fw.hit_by_companion = true
 				raylib.PlaySound(sfx_hit)
 				if fw.hp <= 0 {
-					fw.state = .Dead
+					fw.state = .Dying
+					fw.current_frame = 0
+					fw.anim_timer = 0
+					fw.vel = {}
+					fw.damage_flash_timer = 0
 					fw.flame_active = false
 					bp^ += BP_FLAMEWARDEN_KILL
 				}
@@ -1155,7 +1229,7 @@ update_flamewardens :: proc(
 		}
 
 		// Blood scythe attack collision
-		if fw.state != .Dead && (scythe.state == .Attacking || scythe.state == .Quick_Attacking) && !fw.hit_by_scythe {
+		if fw.state != .Dead && fw.state != .Dying && (scythe.state == .Attacking || scythe.state == .Quick_Attacking) && !fw.hit_by_scythe {
 			scythe_rect := get_scythe_rect(scythe, player)
 			fhb := get_fw_hitbox(fw)
 			if raylib.CheckCollisionRecs(scythe_rect, fhb) {
@@ -1164,7 +1238,11 @@ update_flamewardens :: proc(
 				fw.hit_by_scythe = true
 				raylib.PlaySound(sfx_hit)
 				if fw.hp <= 0 {
-					fw.state = .Dead
+					fw.state = .Dying
+					fw.current_frame = 0
+					fw.anim_timer = 0
+					fw.vel = {}
+					fw.damage_flash_timer = 0
 					fw.flame_active = false
 					bp^ += BP_FLAMEWARDEN_KILL
 				}
@@ -1172,7 +1250,7 @@ update_flamewardens :: proc(
 		}
 
 		// Quick attack collision
-		if fw.state != .Dead && player.quick_attack_damage_active {
+		if fw.state != .Dead && fw.state != .Dying && player.quick_attack_damage_active {
 			attack_rect := get_quick_attack_rect(player)
 			fhb := get_fw_hitbox(fw)
 			if raylib.CheckCollisionRecs(attack_rect, fhb) {
@@ -1180,7 +1258,11 @@ update_flamewardens :: proc(
 				fw.damage_flash_timer = DAMAGE_FLASH_DURATION
 				raylib.PlaySound(sfx_hit)
 				if fw.hp <= 0 {
-					fw.state = .Dead
+					fw.state = .Dying
+					fw.current_frame = 0
+					fw.anim_timer = 0
+					fw.vel = {}
+					fw.damage_flash_timer = 0
 					fw.flame_active = false
 					bp^ += BP_FLAMEWARDEN_KILL
 				}
@@ -1219,6 +1301,9 @@ draw_flamewardens :: proc(pool: ^FW_Pool, white_shader: raylib.Shader) {
 		case .Idle, .Cooldown, .Attack_End:
 			tex = pool.idle_tex
 			max_frames = pool.idle_frames
+		case .Dying:
+			tex = pool.death_tex
+			max_frames = pool.death_frames
 		case .Dead:
 			continue
 		}
@@ -1261,7 +1346,7 @@ draw_flamewardens :: proc(pool: ^FW_Pool, white_shader: raylib.Shader) {
 			case .Attack_End:
 				flame_tex = pool.flame_end_tex
 				flame_max = pool.flame_end_frames
-			case .Idle, .Patrol, .Cooldown, .Dead:
+			case .Idle, .Patrol, .Cooldown, .Dying, .Dead:
 				continue
 			}
 
@@ -1372,6 +1457,20 @@ fw_move_and_collide :: proc(fw: ^Flamewarden, map_data: ^dm.Dot_Map, dt: f32) {
 		}
 		fw.vel.y = 0
 	}
+}
+
+@(private = "file")
+fw_advance_oneshot :: proc(fw: ^Flamewarden, total_frames: int, dt: f32) -> bool {
+	frame_dur: f32 = 1.0 / FW_ANIM_FPS
+	fw.anim_timer += dt
+	if fw.anim_timer >= frame_dur {
+		fw.anim_timer -= frame_dur
+		fw.current_frame += 1
+		if int(fw.current_frame) >= total_frames {
+			return true
+		}
+	}
+	return false
 }
 
 @(private = "file")
