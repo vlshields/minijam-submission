@@ -587,15 +587,15 @@ update_main_menu :: proc(dt: f32) {
 	}
 
 	// Navigation
-	if raylib.IsKeyPressed(.DOWN) || raylib.IsKeyPressed(.S) {
+	if input_menu_down() {
 		gs.menu_selection = (gs.menu_selection + 1) %% 3
 	}
-	if raylib.IsKeyPressed(.UP) || raylib.IsKeyPressed(.W) {
+	if input_menu_up() {
 		gs.menu_selection = (gs.menu_selection - 1) %% 3
 	}
 
 	// Confirm
-	if raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+	if input_confirm() {
 		switch gs.menu_selection {
 		case 0: // Play
 			raylib.PlaySound(gs.sfx_confirm)
@@ -718,7 +718,7 @@ OPENING_SCENE : [CUTSCENE_LINE_COUNT]Cutscene_Line : {
 @(private = "file")
 update_cutscene :: proc(dt: f32) {
 	// Skip entire cutscene
-	if raylib.IsKeyPressed(.ESCAPE) {
+	if input_back() {
 		gs.cutscene_played = true
 		gs.phase = .Pre_Round
 		raylib.StopMusicStream(gs.music_cutscene)
@@ -732,7 +732,7 @@ update_cutscene :: proc(dt: f32) {
 	}
 
 	// Advance dialogue
-	if raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+	if input_confirm() {
 		gs.cutscene_line += 1
 		if gs.cutscene_line >= CUTSCENE_LINE_COUNT {
 			gs.cutscene_played = true
@@ -784,10 +784,11 @@ draw_cutscene :: proc() {
 	raylib.DrawText(line.text, BOX_X + 10 + shake_x, BOX_Y + 24 + shake_y, 10, raylib.WHITE)
 
 	// Prompts
-	prompt: cstring = "ENTER to continue"
+	prompt: cstring = gamepad_active() ? "A to continue" : "ENTER to continue"
 	prompt_w := raylib.MeasureText(prompt, 6)
 	raylib.DrawText(prompt, (SCREEN_WIDTH - prompt_w) / 2, SCREEN_HEIGHT - 14, 6, {150, 150, 150, 255})
-	raylib.DrawText("ESC to skip", SCREEN_WIDTH - 70, 5, 6, {100, 100, 100, 255})
+	skip: cstring = gamepad_active() ? "B to skip" : "ESC to skip"
+	raylib.DrawText(skip, SCREEN_WIDTH - 70, 5, 6, {100, 100, 100, 255})
 }
 
 // Phase: Pre-Round
@@ -795,7 +796,7 @@ draw_cutscene :: proc() {
 
 @(private = "file")
 update_pre_round :: proc(dt: f32) {
-	if raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) || raylib.IsKeyPressed(.ESCAPE) {
+	if input_confirm() || input_back() {
 		start_round()
 	}
 }
@@ -820,7 +821,7 @@ draw_pre_round :: proc() {
 	raylib.DrawText(line2, (SCREEN_WIDTH - w2) / 2, base_y + line_spacing, text_size, raylib.WHITE)
 	raylib.DrawText(line3, (SCREEN_WIDTH - w3) / 2, base_y + line_spacing * 2, text_size, raylib.WHITE)
 
-	prompt: cstring = "Press ENTER to begin"
+	prompt: cstring = gamepad_active() ? "Press A to begin" : "Press ENTER to begin"
 	prompt_w := raylib.MeasureText(prompt, 8)
 	raylib.DrawText(prompt, (SCREEN_WIDTH - prompt_w) / 2, SCREEN_HEIGHT - 40, 8, raylib.Color{150, 150, 150, 255})
 }
@@ -830,13 +831,18 @@ draw_pre_round :: proc() {
 
 @(private = "file")
 update_playing :: proc(dt: f32) {
-	if raylib.IsKeyPressed(.ESCAPE) {
+	if input_pause() {
 		raylib.PlaySound(gs.sfx_back)
 		gs.phase = .Paused
 		gs.pause_selection = 0
 		gs.pause_show_controls = false
 		gs.pause_show_audio = false
 		return
+	}
+
+	// Companion selection toggle (gamepad RB)
+	if input_companion_toggle() {
+		selected_companion = selected_companion == .Scythe ? .Fangs : .Scythe
 	}
 
 	// BP drain
@@ -960,7 +966,7 @@ PAUSE_ITEMS :: [4]cstring{"CONTINUE", "AUDIO", "CONTROLS", "QUIT"}
 @(private = "file")
 update_paused :: proc(dt: f32) {
 	if gs.pause_show_controls {
-		if raylib.IsKeyPressed(.ESCAPE) || raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+		if input_back() || input_confirm() {
 			raylib.PlaySound(gs.sfx_back)
 			gs.pause_show_controls = false
 		}
@@ -972,20 +978,20 @@ update_paused :: proc(dt: f32) {
 		return
 	}
 
-	if raylib.IsKeyPressed(.ESCAPE) {
+	if input_back() {
 		raylib.PlaySound(gs.sfx_back)
 		gs.phase = .Playing
 		return
 	}
 
-	if raylib.IsKeyPressed(.DOWN) || raylib.IsKeyPressed(.S) {
+	if input_menu_down() {
 		gs.pause_selection = (gs.pause_selection + 1) %% len(PAUSE_ITEMS)
 	}
-	if raylib.IsKeyPressed(.UP) || raylib.IsKeyPressed(.W) {
+	if input_menu_up() {
 		gs.pause_selection = (gs.pause_selection - 1) %% len(PAUSE_ITEMS)
 	}
 
-	if raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+	if input_confirm() {
 		switch gs.pause_selection {
 		case 0: // Continue
 			raylib.PlaySound(gs.sfx_confirm)
@@ -1070,24 +1076,37 @@ draw_controls_screen :: proc() {
 	row_y       :: i32(90)
 	row_h       :: i32(18)
 
-	controls := [?][2]cstring{
-		{"Move", "A / D  or  LEFT / RIGHT"},
-		{"Jump", "W  or  UP"},
-		{"Dash", "SPACE"},
-		{"Quick Attack", "J  or  LEFT CLICK"},
-		{"Secondary Scythe Attack", "K  or  RIGHT CLICK"},
-		{"Summon Blood Scythe", "R"},
-		{"Summon Blood Fangs", "F"},
-		{"Pause", "ESC"},
+	col_gp_x :: i32(480)
+	gp := gamepad_active()
+
+	controls := [?][3]cstring{
+		{"Move",                    "A / D  or  LEFT / RIGHT", "Left Stick"},
+		{"Jump",                    "W  or  UP",               "A"},
+		{"Dash",                    "SPACE",                   "B"},
+		{"Quick Attack",            "J  or  LEFT CLICK",       "X"},
+		{"Secondary Scythe Attack", "K  or  RIGHT CLICK",      "Y"},
+		{"Summon Blood Scythe",     "R",                       "LT (select w/ RB)"},
+		{"Summon Blood Fangs",      "F",                       "LT (select w/ RB)"},
+		{"Pause",                   "ESC",                     "START"},
+	}
+
+	if gp {
+		kb_header: cstring = "Keyboard"
+		gp_header: cstring = "Gamepad"
+		raylib.DrawText(kb_header, col_key_x, row_y - row_h, label_size, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
+		raylib.DrawText(gp_header, col_gp_x, row_y - row_h, label_size, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
 	}
 
 	for entry, i in controls {
 		y := row_y + i32(i) * row_h
 		raylib.DrawText(entry[0], col_label_x, y, label_size, raylib.Color{200, 200, 200, 255})
 		raylib.DrawText(entry[1], col_key_x, y, label_size, raylib.WHITE)
+		if gp {
+			raylib.DrawText(entry[2], col_gp_x, y, label_size, raylib.WHITE)
+		}
 	}
 
-	back: cstring = "Press ESC or ENTER to go back"
+	back: cstring = gp ? "Press ESC / B to go back" : "Press ESC or ENTER to go back"
 	back_w := raylib.MeasureText(back, label_size)
 	raylib.DrawText(back, (SCREEN_WIDTH - back_w) / 2, 250, label_size, raylib.Color{150, 150, 150, 255})
 }
@@ -1099,7 +1118,7 @@ draw_controls_screen :: proc() {
 @(private = "file")
 update_round_won :: proc(dt: f32) {
 	gs.phase_timer -= dt
-	if gs.phase_timer <= 0 || raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+	if gs.phase_timer <= 0 || input_confirm() {
 		unload_map_data()
 		gs.current_round += 1
 		start_round()
@@ -1123,7 +1142,7 @@ draw_round_won :: proc() {
 	title_w := raylib.MeasureText(title, 20)
 	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, SCREEN_HEIGHT / 2 - 20, 20, raylib.WHITE)
 
-	sub : cstring = "Press ENTER to continue"
+	sub : cstring = gamepad_active() ? "Press A to continue" : "Press ENTER to continue"
 	sub_w := raylib.MeasureText(sub, 10)
 	raylib.DrawText(sub, (SCREEN_WIDTH - sub_w) / 2, SCREEN_HEIGHT / 2 + 10, 10, raylib.Color{200, 200, 200, 255})
 }
@@ -1134,7 +1153,7 @@ draw_round_won :: proc() {
 
 @(private = "file")
 update_game_over :: proc(dt: f32) {
-	if raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+	if input_confirm() {
 		unload_map_data()
 		gs.current_round = 0
 		start_round()
@@ -1155,7 +1174,7 @@ draw_game_over :: proc() {
 	title_w := raylib.MeasureText(title, 20)
 	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, SCREEN_HEIGHT / 2 - 20, 20, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
 
-	sub : cstring = "Press ENTER to play again"
+	sub : cstring = gamepad_active() ? "Press A to play again" : "Press ENTER to play again"
 	sub_w := raylib.MeasureText(sub, 10)
 	raylib.DrawText(sub, (SCREEN_WIDTH - sub_w) / 2, SCREEN_HEIGHT / 2 + 10, 10, raylib.WHITE)
 }
@@ -1183,21 +1202,21 @@ apply_volumes :: proc() {
 update_audio_settings :: proc(dt: f32) {
 	VOLUME_STEP :: f32(0.1)
 
-	if raylib.IsKeyPressed(.ESCAPE) || raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+	if input_back() || input_confirm() {
 		raylib.PlaySound(gs.sfx_back)
 		gs.pause_show_audio = false
 		gs.audio_selection = 0
 		return
 	}
 
-	if raylib.IsKeyPressed(.UP) || raylib.IsKeyPressed(.W) {
+	if input_menu_up() {
 		gs.audio_selection = (gs.audio_selection - 1) %% 2
 	}
-	if raylib.IsKeyPressed(.DOWN) || raylib.IsKeyPressed(.S) {
+	if input_menu_down() {
 		gs.audio_selection = (gs.audio_selection + 1) %% 2
 	}
 
-	if raylib.IsKeyPressed(.LEFT) || raylib.IsKeyPressed(.A) {
+	if input_menu_left() {
 		if gs.audio_selection == 0 {
 			gs.music_volume = max(gs.music_volume - VOLUME_STEP, 0.0)
 		} else {
@@ -1205,7 +1224,7 @@ update_audio_settings :: proc(dt: f32) {
 		}
 		apply_volumes()
 	}
-	if raylib.IsKeyPressed(.RIGHT) || raylib.IsKeyPressed(.D) {
+	if input_menu_right() {
 		if gs.audio_selection == 0 {
 			gs.music_volume = min(gs.music_volume + VOLUME_STEP, 1.0)
 		} else {

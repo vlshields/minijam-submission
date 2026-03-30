@@ -106,7 +106,7 @@ update_player :: proc(p: ^Player, map_data: ^dm.Dot_Map, dt: f32) {
 	update_dash_particles(p, dt)
 
 	// Start dash
-	if !p.dashing && p.dash_cooldown <= 0 && raylib.IsKeyPressed(.SPACE) {
+	if !p.dashing && p.dash_cooldown <= 0 && input_dash() {
 		p.dashing = true
 		p.dash_timer = DASH_DURATION
 		p.dash_dir = p.facing_left ? -1.0 : 1.0
@@ -151,17 +151,17 @@ update_player :: proc(p: ^Player, map_data: ^dm.Dot_Map, dt: f32) {
 
 		// Normal input
 		move_x: f32 = 0
-		if raylib.IsKeyDown(.A) || raylib.IsKeyDown(.LEFT) {
+		if input_move_left() {
 			move_x -= 1
 		}
-		if raylib.IsKeyDown(.D) || raylib.IsKeyDown(.RIGHT) {
+		if input_move_right() {
 			move_x += 1
 		}
 
 		p.vel.x = move_x * PLAYER_SPEED
 
 		// Jump (double jump)
-		if p.jumps_left > 0 && (raylib.IsKeyPressed(.W) || raylib.IsKeyPressed(.UP)) {
+		if p.jumps_left > 0 && input_jump() {
 			p.vel.y = JUMP_VELOCITY
 			p.on_ground = false
 			p.jumps_left -= 1
@@ -533,7 +533,7 @@ update_blood_scythe :: proc(s: ^Blood_Scythe, p: ^Player, companion: ^Companion,
 			return
 		}
 
-		if raylib.IsKeyPressed(.R) {
+		if input_summon_scythe() || (input_companion_summon() && selected_companion == .Scythe) {
 			if companion.state != .Inactive {
 				// Despawn companion first, then spawn scythe
 				if companion.state != .Despawning {
@@ -561,21 +561,21 @@ update_blood_scythe :: proc(s: ^Blood_Scythe, p: ^Player, companion: ^Companion,
 		}
 
 	case .Idle:
-		if raylib.IsKeyPressed(.R) {
+		if input_summon_scythe() || (input_companion_summon() && selected_companion == .Scythe) {
 			s.state = .Despawning
 			s.current_frame = 0
 			s.anim_timer = 0
 			return
 		}
 
-		if s.attack_cooldown <= 0 && (raylib.IsMouseButtonPressed(.LEFT) || raylib.IsKeyPressed(.J)) {
+		if s.attack_cooldown <= 0 && input_attack() {
 			s.state = .Attacking
 			s.current_frame = 0
 			s.anim_timer = 0
 			return
 		}
 
-		if s.attack_cooldown <= 0 && (raylib.IsMouseButtonPressed(.RIGHT) || raylib.IsKeyPressed(.K)) {
+		if s.attack_cooldown <= 0 && input_scythe_secondary() {
 			s.state = .Quick_Attacking
 			s.current_frame = 0
 			s.anim_timer = 0
@@ -796,7 +796,7 @@ update_companion :: proc(c: ^Companion, p: ^Player, scythe: ^Blood_Scythe, dt: f
 			return
 		}
 
-		if raylib.IsKeyPressed(.F) {
+		if input_summon_fangs() || (input_companion_summon() && selected_companion == .Fangs) {
 			if scythe.state != .Inactive {
 				// Despawn scythe first, then spawn companion
 				if scythe.state != .Despawning {
@@ -825,15 +825,15 @@ update_companion :: proc(c: ^Companion, p: ^Player, scythe: ^Blood_Scythe, dt: f
 
 	case .Idle:
 		// Toggle off -> despawn
-		if raylib.IsKeyPressed(.F) {
+		if input_summon_fangs() || (input_companion_summon() && selected_companion == .Fangs) {
 			c.state = .Despawning
 			c.current_frame = 0
 			c.anim_timer = 0
 			return
 		}
 
-		// Attack on left click or J
-		if c.attack_cooldown <= 0 && (raylib.IsMouseButtonPressed(.LEFT) || raylib.IsKeyPressed(.J)) {
+		// Attack
+		if c.attack_cooldown <= 0 && input_attack() {
 			c.state = .Attacking
 			c.current_frame = 0
 			c.anim_timer = 0
@@ -996,7 +996,7 @@ update_quick_attack :: proc(p: ^Player, companion: ^Companion, scythe: ^Blood_Sc
 	p.quick_attack_damage_active = false
 
 	weapons_inactive := companion.state == .Inactive && scythe.state == .Inactive
-	attack_pressed := raylib.IsKeyPressed(.J) || raylib.IsMouseButtonPressed(.LEFT)
+	attack_pressed := input_attack()
 
 	switch p.quick_attack_state {
 	case .None:
