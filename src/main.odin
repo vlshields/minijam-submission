@@ -47,15 +47,21 @@ Game_State :: struct {
 	enemy_scale:    f32,
 
 	// Audio
-	sfx_jump:        raylib.Sound,
-	sfx_footsteps:   raylib.Sound,
-	sfx_confirm:     raylib.Sound,
-	sfx_back:        raylib.Sound,
-	music_theme:     raylib.Music,
-	sfx_volume:      f32,
-	music_volume:    f32,
-	footstep_timer:  f32,
-	audio_selection: int, // 0=music, 1=sfx
+	sfx_jump:         raylib.Sound,
+	sfx_footsteps:    raylib.Sound,
+	sfx_confirm:      raylib.Sound,
+	sfx_back:         raylib.Sound,
+	sfx_hit:          raylib.Sound,
+	sfx_dash:         raylib.Sound,
+	sfx_quick_attack: raylib.Sound,
+	sfx_summon:       raylib.Sound,
+	sfx_despawn:      raylib.Sound,
+	music_theme:      raylib.Music,
+	music_cutscene:   raylib.Music,
+	sfx_volume:       f32,
+	music_volume:     f32,
+	footstep_timer:   f32,
+	audio_selection:  int, // 0=music, 1=sfx
 
 	// Pause menu
 	pause_selection:     int,
@@ -317,6 +323,14 @@ start_round :: proc() {
 	gs.phase = .Playing
 	gs.phase_timer = 0
 
+	// Switch from menu/cutscene music to gameplay theme
+	if raylib.IsMusicStreamPlaying(gs.music_cutscene) {
+		raylib.StopMusicStream(gs.music_cutscene)
+	}
+	if !raylib.IsMusicStreamPlaying(gs.music_theme) {
+		raylib.PlayMusicStream(gs.music_theme)
+	}
+
 	gs.camera.target = gs.player.pos
 }
 
@@ -349,16 +363,29 @@ init :: proc() {
 	gs.sfx_footsteps = raylib.LoadSound("assets/audio/sfx/player_footsteps.wav")
 	gs.sfx_confirm = raylib.LoadSound("assets/audio/sfx/ui_confirm.wav")
 	gs.sfx_back = raylib.LoadSound("assets/audio/sfx/negative-back.wav")
+	gs.sfx_hit = raylib.LoadSound("assets/audio/sfx/hit.wav")
+	gs.sfx_dash = raylib.LoadSound("assets/audio/sfx/player_dash.wav")
+	gs.sfx_quick_attack = raylib.LoadSound("assets/audio/sfx/quick_attacks.wav")
+	gs.sfx_summon = raylib.LoadSound("assets/audio/sfx/summon_scythe_or_fangs.wav")
+	gs.sfx_despawn = raylib.LoadSound("assets/audio/sfx/scythe_or_fangs_despawn.wav")
 	gs.music_theme = raylib.LoadMusicStream("assets/audio/soundtrack/theme.ogg")
-	gs.sfx_volume = 0.5
+	gs.music_cutscene = raylib.LoadMusicStream("assets/audio/soundtrack/cutscene_w_belial.ogg")
+	gs.sfx_volume = 0.3
 	gs.music_volume = 0.5
 	raylib.SetSoundVolume(gs.sfx_jump, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_footsteps, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_confirm, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_back, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_hit, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_dash, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_quick_attack, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_summon, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_despawn, gs.sfx_volume)
 	raylib.SetMusicVolume(gs.music_theme, gs.music_volume)
+	raylib.SetMusicVolume(gs.music_cutscene, gs.music_volume)
 	gs.music_theme.looping = true
-	raylib.PlayMusicStream(gs.music_theme)
+	gs.music_cutscene.looping = true
+	raylib.PlayMusicStream(gs.music_cutscene)
 
 	// Init entity textures (loaded once, reused across rounds)
 	init_player(&gs.player, {100, 100})
@@ -418,6 +445,7 @@ update :: proc() {
 	}
 
 	raylib.UpdateMusicStream(gs.music_theme)
+	raylib.UpdateMusicStream(gs.music_cutscene)
 
 	switch gs.phase {
 	case .Main_Menu:
@@ -482,7 +510,13 @@ shutdown :: proc() {
 	raylib.UnloadSound(gs.sfx_footsteps)
 	raylib.UnloadSound(gs.sfx_confirm)
 	raylib.UnloadSound(gs.sfx_back)
+	raylib.UnloadSound(gs.sfx_hit)
+	raylib.UnloadSound(gs.sfx_dash)
+	raylib.UnloadSound(gs.sfx_quick_attack)
+	raylib.UnloadSound(gs.sfx_summon)
+	raylib.UnloadSound(gs.sfx_despawn)
 	raylib.UnloadMusicStream(gs.music_theme)
+	raylib.UnloadMusicStream(gs.music_cutscene)
 	raylib.CloseAudioDevice()
 	raylib.UnloadShader(gs.white_flash_shader)
 	raylib.UnloadTexture(gs.parallax_tex)
@@ -687,6 +721,8 @@ update_cutscene :: proc(dt: f32) {
 	if raylib.IsKeyPressed(.ESCAPE) {
 		gs.cutscene_played = true
 		gs.phase = .Pre_Round
+		raylib.StopMusicStream(gs.music_cutscene)
+		raylib.PlayMusicStream(gs.music_theme)
 		return
 	}
 
@@ -701,6 +737,8 @@ update_cutscene :: proc(dt: f32) {
 		if gs.cutscene_line >= CUTSCENE_LINE_COUNT {
 			gs.cutscene_played = true
 			gs.phase = .Pre_Round
+			raylib.StopMusicStream(gs.music_cutscene)
+			raylib.ResumeMusicStream(gs.music_theme)
 			return
 		}
 		scene := OPENING_SCENE
@@ -826,8 +864,14 @@ update_playing :: proc(dt: f32) {
 		}
 	}
 
-	// Gameplay
+	// Gameplay — capture previous states for SFX triggers
 	prev_jumps := gs.player.jumps_left
+	prev_qa_state := gs.player.quick_attack_state
+	prev_dashing := gs.player.dashing
+	prev_comp_state := gs.companion.state
+	prev_scythe_state := gs.blood_scythe.state
+	prev_player_flash := gs.player.damage_flash_timer
+
 	update_quick_attack(&gs.player, &gs.companion, &gs.blood_scythe, dt)
 	update_player(&gs.player, &gs.map_data, dt)
 	update_companion(&gs.companion, &gs.player, &gs.blood_scythe, dt)
@@ -835,6 +879,26 @@ update_playing :: proc(dt: f32) {
 	// SFX: jump
 	if gs.player.jumps_left < prev_jumps {
 		raylib.PlaySound(gs.sfx_jump)
+	}
+
+	// SFX: dash
+	if !prev_dashing && gs.player.dashing {
+		raylib.PlaySound(gs.sfx_dash)
+	}
+
+	// SFX: quick attack
+	if prev_qa_state == .None && (gs.player.quick_attack_state == .Attack1 || gs.player.quick_attack_state == .Attack2) {
+		raylib.PlaySound(gs.sfx_quick_attack)
+	} else if prev_qa_state == .Attack1 && gs.player.quick_attack_state == .Attack2 {
+		raylib.PlaySound(gs.sfx_quick_attack)
+	}
+
+	// SFX: companion summon/despawn
+	if prev_comp_state != .Spawning && gs.companion.state == .Spawning {
+		raylib.PlaySound(gs.sfx_summon)
+	}
+	if prev_comp_state != .Despawning && gs.companion.state == .Despawning {
+		raylib.PlaySound(gs.sfx_despawn)
 	}
 
 	// SFX: footsteps (looping while moving on ground)
@@ -847,10 +911,25 @@ update_playing :: proc(dt: f32) {
 	} else {
 		gs.footstep_timer = 0
 	}
+
 	update_blood_scythe(&gs.blood_scythe, &gs.player, &gs.companion, dt)
-	update_enemies(&gs.enemies, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, dt)
-	update_flamewardens(&gs.flamewardens, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, dt)
-	update_devils(&gs.devils, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, dt)
+
+	// SFX: scythe summon/despawn
+	if prev_scythe_state != .Spawning && gs.blood_scythe.state == .Spawning {
+		raylib.PlaySound(gs.sfx_summon)
+	}
+	if prev_scythe_state != .Despawning && gs.blood_scythe.state == .Despawning {
+		raylib.PlaySound(gs.sfx_despawn)
+	}
+
+	update_enemies(&gs.enemies, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, dt)
+	update_flamewardens(&gs.flamewardens, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, dt)
+	update_devils(&gs.devils, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, dt)
+
+	// SFX: player got hit
+	if prev_player_flash <= 0 && gs.player.damage_flash_timer > 0 {
+		raylib.PlaySound(gs.sfx_hit)
+	}
 	update_camera(dt)
 }
 
@@ -925,6 +1004,8 @@ update_paused :: proc(dt: f32) {
 			gs.menu_timer = 0
 			gs.menu_fall_frame = 0
 			gs.menu_fall_timer = 0
+			raylib.StopMusicStream(gs.music_theme)
+			raylib.PlayMusicStream(gs.music_cutscene)
 		}
 	}
 }
@@ -1089,7 +1170,13 @@ apply_volumes :: proc() {
 	raylib.SetSoundVolume(gs.sfx_footsteps, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_confirm, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_back, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_hit, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_dash, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_quick_attack, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_summon, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_despawn, gs.sfx_volume)
 	raylib.SetMusicVolume(gs.music_theme, gs.music_volume)
+	raylib.SetMusicVolume(gs.music_cutscene, gs.music_volume)
 }
 
 @(private = "file")

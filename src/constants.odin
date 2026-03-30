@@ -29,21 +29,21 @@ COMPANION_OFFSET_X   :: 14.0
 COMPANION_OFFSET_Y   :: 0.0
 COMPANION_LERP_SPEED :: 10.0
 
-COMPANION_ATTACK_COOLDOWN :: 2.0
+COMPANION_ATTACK_COOLDOWN :: .3
 COMPANION_ONESHOT_FPS     :: 12.0
-COMPANION_DAMAGE          :: 31.0
+COMPANION_DAMAGE          :: 41.0
 
 // Blood scythe
 SCYTHE_SRC_SIZE        :: 32
 SCYTHE_OFFSET_X        :: 14.0
 SCYTHE_OFFSET_Y        :: 0.0
 SCYTHE_LERP_SPEED      :: 10.0
-SCYTHE_ATTACK_COOLDOWN :: 0.5
+SCYTHE_ATTACK_COOLDOWN :: 0.0
 SCYTHE_ONESHOT_FPS     :: 18.0
-SCYTHE_DAMAGE          :: 21.0
+SCYTHE_DAMAGE          :: 31.0
 
 // Player combat
-PLAYER_MAX_HP :: 100.0
+PLAYER_MAX_HP :: 120.0
 
 // Enemy – fireball
 ENEMY_SRC_SIZE         :: 16
@@ -60,10 +60,10 @@ MAX_ENEMIES            :: 32
 FW_SRC_SIZE            :: 16
 FW_HITBOX_W            :: 12
 FW_HITBOX_H            :: 14
-FW_HP                  :: 42.0
+FW_HP                  :: 35.0
 FW_FLAME_DAMAGE        :: 21.0
 FW_PATROL_SPEED        :: 40.0
-FW_ATTACK_COOLDOWN     :: 1.5
+FW_ATTACK_COOLDOWN     :: 2.5
 FW_ANIM_FPS            :: 10.0
 FW_FLAME_LOOP_DURATION :: 1.0
 FW_FLAME_TRACK_SPEED   :: 80.0 // pixels/sec flame chases player
@@ -74,7 +74,7 @@ MAX_FLAMEWARDENS       :: 16
 // Quick attack
 QUICK_ATTACK_SRC_SIZE     :: 32
 QUICK_ATTACK_FPS          :: 12.0
-QUICK_ATTACK_DAMAGE       :: 8.0
+QUICK_ATTACK_DAMAGE       :: 18.0
 QUICK_ATTACK_COOLDOWN     :: 0.0
 QUICK_ATTACK_CHAIN_WINDOW :: 3
 QUICK_ATTACK_HIT_FRAME    :: 3
@@ -84,7 +84,7 @@ DEVIL_SRC_SIZE         :: 16
 DEVIL_DRAW_SIZE        :: 12
 DEVIL_HITBOX_W         :: 12
 DEVIL_HITBOX_H         :: 14
-DEVIL_HP               :: 40.0
+DEVIL_HP               :: 30.0
 DEVIL_DAMAGE           :: 13.0
 DEVIL_SPEED            :: 60.0
 DEVIL_ATTACK_RANGE     :: 32.0

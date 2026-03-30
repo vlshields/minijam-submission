@@ -1,0 +1,16 @@
+v0.0.4 (current)
+---------------------------------
+-Patch Notes:
+    - Fixed theme song 
+    - added a different soundtrack for the cutscene and main menu
+    - added scythe and fang summoning and despawning sfx (proud of these)
+    - other new sfx
+    - fixed tile coloring inconsistencies
+    - Scythe attacks now have no cooldown
+    - Player now starts with 120hp (up from 100)
+    
+
+v0.0.3
+----------------------------------
+-first "official" build for the game jam and first submission. 
+-Complete game, but imbalanced and buggy.

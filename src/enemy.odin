@@ -84,6 +84,7 @@ update_enemies :: proc(
 	map_data: ^dm.Dot_Map,
 	bp: ^i32,
 	scale: f32,
+	sfx_hit: raylib.Sound,
 	dt: f32,
 ) {
 	// Compute viewport rect for aggro check
@@ -151,6 +152,7 @@ update_enemies :: proc(
 			if check_enemy_player_collision(e, player) && !player.dashing {
 				player.hp -= ENEMY_DAMAGE * scale
 				player.damage_flash_timer = DAMAGE_FLASH_DURATION
+				raylib.PlaySound(sfx_hit)
 				if player.hp < 0 {
 					player.hp = 0
 				}
@@ -200,6 +202,7 @@ update_enemies :: proc(
 				e.hp -= COMPANION_DAMAGE
 				e.damage_flash_timer = DAMAGE_FLASH_DURATION
 				e.hit_by_companion = true
+				raylib.PlaySound(sfx_hit)
 				if e.hp <= 0 {
 					e.state = .Dead
 					bp^ += BP_FLAMEBALL_KILL
@@ -215,6 +218,7 @@ update_enemies :: proc(
 				e.hp -= SCYTHE_DAMAGE
 				e.damage_flash_timer = DAMAGE_FLASH_DURATION
 				e.hit_by_scythe = true
+				raylib.PlaySound(sfx_hit)
 				if e.hp <= 0 {
 					e.state = .Dead
 					bp^ += BP_FLAMEBALL_KILL
@@ -229,6 +233,7 @@ update_enemies :: proc(
 			if raylib.CheckCollisionRecs(attack_rect, ehb) {
 				e.hp -= QUICK_ATTACK_DAMAGE
 				e.damage_flash_timer = DAMAGE_FLASH_DURATION
+				raylib.PlaySound(sfx_hit)
 				if e.hp <= 0 {
 					e.state = .Dead
 					bp^ += BP_FLAMEBALL_KILL
@@ -464,6 +469,7 @@ update_devils :: proc(
 	map_data: ^dm.Dot_Map,
 	bp: ^i32,
 	scale: f32,
+	sfx_hit: raylib.Sound,
 	dt: f32,
 ) {
 	half_w := f32(SCREEN_WIDTH) / (2 * camera.zoom)
@@ -545,6 +551,7 @@ update_devils :: proc(
 				if raylib.CheckCollisionRecs(bolt_rect, player_rect) && !player.dashing {
 					player.hp -= DEVIL_DAMAGE * scale
 					player.damage_flash_timer = DAMAGE_FLASH_DURATION
+					raylib.PlaySound(sfx_hit)
 					if player.hp < 0 {
 						player.hp = 0
 					}
@@ -588,6 +595,7 @@ update_devils :: proc(
 				d.hp -= COMPANION_DAMAGE
 				d.damage_flash_timer = DAMAGE_FLASH_DURATION
 				d.hit_by_companion = true
+				raylib.PlaySound(sfx_hit)
 				if d.hp <= 0 {
 					d.state = .Dead
 					d.bolt_active = false
@@ -604,6 +612,7 @@ update_devils :: proc(
 				d.hp -= SCYTHE_DAMAGE
 				d.damage_flash_timer = DAMAGE_FLASH_DURATION
 				d.hit_by_scythe = true
+				raylib.PlaySound(sfx_hit)
 				if d.hp <= 0 {
 					d.state = .Dead
 					d.bolt_active = false
@@ -619,6 +628,7 @@ update_devils :: proc(
 			if raylib.CheckCollisionRecs(attack_rect, dhb) {
 				d.hp -= QUICK_ATTACK_DAMAGE
 				d.damage_flash_timer = DAMAGE_FLASH_DURATION
+				raylib.PlaySound(sfx_hit)
 				if d.hp <= 0 {
 					d.state = .Dead
 					d.bolt_active = false
@@ -932,6 +942,7 @@ update_flamewardens :: proc(
 	map_data: ^dm.Dot_Map,
 	bp: ^i32,
 	scale: f32,
+	sfx_hit: raylib.Sound,
 	dt: f32,
 ) {
 	half_w := f32(SCREEN_WIDTH) / (2 * camera.zoom)
@@ -1077,6 +1088,7 @@ update_flamewardens :: proc(
 				if raylib.CheckCollisionRecs(flame_rect, player_rect) && !player.dashing {
 					player.hp -= FW_FLAME_DAMAGE * scale
 					player.damage_flash_timer = DAMAGE_FLASH_DURATION
+					raylib.PlaySound(sfx_hit)
 					if player.hp < 0 {
 						player.hp = 0
 					}
@@ -1133,6 +1145,7 @@ update_flamewardens :: proc(
 				fw.hp -= COMPANION_DAMAGE
 				fw.damage_flash_timer = DAMAGE_FLASH_DURATION
 				fw.hit_by_companion = true
+				raylib.PlaySound(sfx_hit)
 				if fw.hp <= 0 {
 					fw.state = .Dead
 					fw.flame_active = false
@@ -1149,6 +1162,7 @@ update_flamewardens :: proc(
 				fw.hp -= SCYTHE_DAMAGE
 				fw.damage_flash_timer = DAMAGE_FLASH_DURATION
 				fw.hit_by_scythe = true
+				raylib.PlaySound(sfx_hit)
 				if fw.hp <= 0 {
 					fw.state = .Dead
 					fw.flame_active = false
@@ -1164,6 +1178,7 @@ update_flamewardens :: proc(
 			if raylib.CheckCollisionRecs(attack_rect, fhb) {
 				fw.hp -= QUICK_ATTACK_DAMAGE
 				fw.damage_flash_timer = DAMAGE_FLASH_DURATION
+				raylib.PlaySound(sfx_hit)
 				if fw.hp <= 0 {
 					fw.state = .Dead
 					fw.flame_active = false
