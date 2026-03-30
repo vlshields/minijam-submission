@@ -1,0 +1,21 @@
+*This dialogue scene should occur before the player starts their run (after selecting) "play" from the main menu. It occurs in Pandamonium, the capital city of Hell.
+The player will have the option to skip the scene by pressing esc*
+
+[START DIALOGUE]
+BELIAL: Abaddon? What are you doing? I am your friend! Ever since this city was founded.
+[PRESS ENTER]
+Abaddon: **chuckles** there are no allies in Hell.
+[PRESS ENTER]
+BELIAL: What could you possibly stand to gain from killing us demonfolk; you are an Angel of Death. You need HUMAN blood to survive!
+[PRESS ENTER]
+Abaddon: It's not just about me anymore Belial.
+[PRESS ENTER]
+BELIAL: ...
+[PRESS ENTER]
+Abaddon: I have a child now. Born of human blood. She needs demon blood to survive. And her supply is draining rapidly.
+[PRESS ENTER]
+BELIAL: You can't have offspring!? Angels are... Wait... No, Abaddon... You didn't... A human??
+[PRESS ENTER]
+*screenshake*
+BELIAL: NOOOOOOOOOOOO!!!!
+[END]

@@ -96,6 +96,9 @@ MAX_DEVILS             :: 16
 // Damage flash
 DAMAGE_FLASH_DURATION  :: 0.15
 
+// Audio
+FOOTSTEP_INTERVAL :: 0.3
+
 // Blood points
 BP_STARTING         :: 50
 BP_DRAIN_INTERVAL   :: 2.0

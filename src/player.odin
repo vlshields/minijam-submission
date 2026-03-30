@@ -230,6 +230,9 @@ draw_player_hud :: proc(p: ^Player) {
 	OUTLINE    :: raylib.Color{0, 0, 0, 255}
 	FILL_COLOR :: raylib.Color{0x33, 0xFF, 0x66, 0xFF}
 
+	// Character name above the bar
+	raylib.DrawText("Abaddon", BAR_X, BAR_Y - 10, 8, raylib.WHITE)
+
 	// HP text to the right of the bar
 	hp_text := fmt.ctprintf("%d/100", i32(p.hp))
 	raylib.DrawText(hp_text, BAR_X + BAR_W + 3, BAR_Y - 1, 8, FILL_COLOR)
@@ -244,6 +247,9 @@ draw_player_hud :: proc(p: ^Player) {
 
 draw_bp_hud :: proc(blood_points: i32, round_timer: f32, current_round: int) {
 	bp_text := fmt.ctprintf("BP: %d", blood_points)
+	bp_w := raylib.MeasureText(bp_text, 10)
+	PAD :: i32(3)
+	raylib.DrawRectangle(8 - PAD, 8 - PAD, bp_w + PAD * 2, 10 + PAD * 2, raylib.Color{0, 0, 0, 140})
 	raylib.DrawText(bp_text, 8, 8, 10, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
 
 	timer_int := int(round_timer) + 1

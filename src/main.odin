@@ -9,6 +9,8 @@ import "core:strings"
 
 Game_Phase :: enum {
 	Main_Menu,
+	Cutscene,
+	Pre_Round,
 	Playing,
 	Paused,
 	Round_Won,
@@ -44,9 +46,21 @@ Game_State :: struct {
 	phase_timer:    f32,
 	enemy_scale:    f32,
 
+	// Audio
+	sfx_jump:        raylib.Sound,
+	sfx_footsteps:   raylib.Sound,
+	sfx_confirm:     raylib.Sound,
+	sfx_back:        raylib.Sound,
+	music_theme:     raylib.Music,
+	sfx_volume:      f32,
+	music_volume:    f32,
+	footstep_timer:  f32,
+	audio_selection: int, // 0=music, 1=sfx
+
 	// Pause menu
 	pause_selection:     int,
 	pause_show_controls: bool,
+	pause_show_audio:    bool,
 
 	// Main menu
 	menu_selection:  int,
@@ -55,6 +69,11 @@ Game_State :: struct {
 	menu_items_x:    f32,
 	menu_fall_frame: f32,
 	menu_fall_timer: f32,
+
+	// Cutscene
+	cutscene_line:   int,
+	cutscene_shake:  f32,
+	cutscene_played: bool,
 }
 
 @(private = "file")
@@ -307,6 +326,7 @@ start_round :: proc() {
 
 init :: proc() {
 	raylib.InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Primal")
+	raylib.InitAudioDevice()
 
 	when ODIN_ARCH != .wasm32 && ODIN_ARCH != .wasm64p32 {
 		monitor := raylib.GetCurrentMonitor()
@@ -323,6 +343,22 @@ init :: proc() {
 
 	gs.bg_color = {0x3d, 0x1f, 0x4c, 0xff}
 	gs.parallax_tex = raylib.LoadTexture("assets/sprites/parallax-bg.png")
+
+	// Audio
+	gs.sfx_jump = raylib.LoadSound("assets/audio/sfx/player_jump.wav")
+	gs.sfx_footsteps = raylib.LoadSound("assets/audio/sfx/player_footsteps.wav")
+	gs.sfx_confirm = raylib.LoadSound("assets/audio/sfx/ui_confirm.wav")
+	gs.sfx_back = raylib.LoadSound("assets/audio/sfx/negative-back.wav")
+	gs.music_theme = raylib.LoadMusicStream("assets/audio/soundtrack/theme.ogg")
+	gs.sfx_volume = 0.5
+	gs.music_volume = 0.5
+	raylib.SetSoundVolume(gs.sfx_jump, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_footsteps, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_confirm, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_back, gs.sfx_volume)
+	raylib.SetMusicVolume(gs.music_theme, gs.music_volume)
+	gs.music_theme.looping = true
+	raylib.PlayMusicStream(gs.music_theme)
 
 	// Init entity textures (loaded once, reused across rounds)
 	init_player(&gs.player, {100, 100})
@@ -381,9 +417,15 @@ update :: proc() {
 		dt = 0.05
 	}
 
+	raylib.UpdateMusicStream(gs.music_theme)
+
 	switch gs.phase {
 	case .Main_Menu:
 		update_main_menu(dt)
+	case .Cutscene:
+		update_cutscene(dt)
+	case .Pre_Round:
+		update_pre_round(dt)
 	case .Playing:
 		update_playing(dt)
 	case .Paused:
@@ -401,6 +443,10 @@ update :: proc() {
 	switch gs.phase {
 	case .Main_Menu:
 		draw_main_menu()
+	case .Cutscene:
+		draw_cutscene()
+	case .Pre_Round:
+		draw_pre_round()
 	case .Playing:
 		draw_playing()
 	case .Paused:
@@ -432,6 +478,12 @@ should_run :: proc() -> bool {
 }
 
 shutdown :: proc() {
+	raylib.UnloadSound(gs.sfx_jump)
+	raylib.UnloadSound(gs.sfx_footsteps)
+	raylib.UnloadSound(gs.sfx_confirm)
+	raylib.UnloadSound(gs.sfx_back)
+	raylib.UnloadMusicStream(gs.music_theme)
+	raylib.CloseAudioDevice()
 	raylib.UnloadShader(gs.white_flash_shader)
 	raylib.UnloadTexture(gs.parallax_tex)
 	raylib.UnloadRenderTexture(gs.render_target)
@@ -502,17 +554,35 @@ update_main_menu :: proc(dt: f32) {
 
 	// Navigation
 	if raylib.IsKeyPressed(.DOWN) || raylib.IsKeyPressed(.S) {
-		gs.menu_selection = (gs.menu_selection + 1) %% 2
+		gs.menu_selection = (gs.menu_selection + 1) %% 3
 	}
 	if raylib.IsKeyPressed(.UP) || raylib.IsKeyPressed(.W) {
-		gs.menu_selection = (gs.menu_selection - 1) %% 2
+		gs.menu_selection = (gs.menu_selection - 1) %% 3
 	}
 
 	// Confirm
 	if raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
-		if gs.menu_selection == 0 {
-			start_round()
+		switch gs.menu_selection {
+		case 0: // Play
+			raylib.PlaySound(gs.sfx_confirm)
+			if !gs.cutscene_played {
+				gs.cutscene_line = 0
+				gs.cutscene_shake = 0
+				gs.phase = .Cutscene
+			} else {
+				start_round()
+			}
+		case 1: // Options (audio)
+			raylib.PlaySound(gs.sfx_confirm)
+			gs.pause_show_audio = true
+		case 2: // Quit
+			gs.should_quit = true
 		}
+	}
+
+	// Audio settings sub-screen
+	if gs.pause_show_audio {
+		update_audio_settings(dt)
 	}
 }
 
@@ -538,7 +608,7 @@ draw_main_menu :: proc() {
 	raylib.DrawText(title, title_x, i32(gs.menu_title_y), title_size, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
 
 	// Menu items
-	items := [2]cstring{"PLAY", "OPTIONS"}
+	items := [3]cstring{"PLAY", "OPTIONS", "QUIT"}
 	item_size :: i32(10)
 	item_base_y :: i32(140)
 	item_spacing :: i32(20)
@@ -562,6 +632,13 @@ draw_main_menu :: proc() {
 	arrow_y := item_base_y + i32(gs.menu_selection) * item_spacing
 	raylib.DrawText(">", arrow_x, arrow_y, item_size, raylib.WHITE)
 
+	// Audio settings overlay
+	if gs.pause_show_audio {
+		raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, 200})
+		draw_audio_settings()
+		return
+	}
+
 	// Decorative falling player sprite
 	frame := int(gs.menu_fall_frame)
 	src := raylib.Rectangle{
@@ -579,15 +656,148 @@ draw_main_menu :: proc() {
 	raylib.DrawTexturePro(gs.player.fall_tex, src, dst, {0, 0}, 0, raylib.WHITE)
 }
 
+// ---------------------------------------------------------------------------
+// Phase: Cutscene
+// ---------------------------------------------------------------------------
+
+Cutscene_Line :: struct {
+	speaker: cstring,
+	text:    cstring,
+	shake:   bool,
+}
+
+CUTSCENE_LINE_COUNT :: 8
+CUTSCENE_SHAKE_DURATION :: f32(0.4)
+
+@(private = "file")
+OPENING_SCENE : [CUTSCENE_LINE_COUNT]Cutscene_Line : {
+	{"BELIAL",  "Abaddon? What are you doing? I am your friend!\nEver since this city was founded.", false},
+	{"Abaddon", "*chuckles* there are no allies in Hell.", false},
+	{"BELIAL",  "What could you possibly stand to gain from killing us\ndemonfolk; you are an Angel of Death.\nYou need HUMAN blood to survive!", false},
+	{"Abaddon", "It's not just about me anymore Belial.", false},
+	{"BELIAL",  "...", false},
+	{"Abaddon", "I have a child now. Born of human blood.\nShe needs demon blood to survive.\nAnd her supply is draining rapidly.", false},
+	{"BELIAL",  "You can't have offspring!? Angels are...\nWait... No, Abaddon... You didn't... A human??", false},
+	{"BELIAL",  "NOOOOOOOOOOOO!!!!", true},
+}
+
+@(private = "file")
+update_cutscene :: proc(dt: f32) {
+	// Skip entire cutscene
+	if raylib.IsKeyPressed(.ESCAPE) {
+		gs.cutscene_played = true
+		gs.phase = .Pre_Round
+		return
+	}
+
+	// Screenshake countdown
+	if gs.cutscene_shake > 0 {
+		gs.cutscene_shake -= dt
+	}
+
+	// Advance dialogue
+	if raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+		gs.cutscene_line += 1
+		if gs.cutscene_line >= CUTSCENE_LINE_COUNT {
+			gs.cutscene_played = true
+			gs.phase = .Pre_Round
+			return
+		}
+		scene := OPENING_SCENE
+		if scene[gs.cutscene_line].shake {
+			gs.cutscene_shake = CUTSCENE_SHAKE_DURATION
+		}
+	}
+}
+
+@(private = "file")
+draw_cutscene :: proc() {
+	raylib.ClearBackground(raylib.BLACK)
+
+	scene := OPENING_SCENE
+	line := scene[gs.cutscene_line]
+
+	// Screenshake offset
+	shake_x: i32 = 0
+	shake_y: i32 = 0
+	if gs.cutscene_shake > 0 {
+		intensity := gs.cutscene_shake / CUTSCENE_SHAKE_DURATION
+		mag := intensity * 4.0
+		shake_x = i32(rand.float32_range(-mag, mag))
+		shake_y = i32(rand.float32_range(-mag, mag))
+	}
+
+	// Dialogue box
+	BOX_X :: i32(40)
+	BOX_W :: SCREEN_WIDTH - BOX_X * 2
+	BOX_H :: i32(90)
+	BOX_Y :: SCREEN_HEIGHT - BOX_H - 20
+	raylib.DrawRectangle(BOX_X + shake_x, BOX_Y + shake_y, BOX_W, BOX_H, {20, 20, 20, 230})
+	raylib.DrawRectangleLines(BOX_X + shake_x, BOX_Y + shake_y, BOX_W, BOX_H, {100, 100, 100, 200})
+
+	// Speaker name
+	speaker_color: raylib.Color = {0xAA, 0x82, 0xFF, 0xFF}
+	if string(line.speaker)[0] == 'B' {
+		speaker_color = {0xFF, 0x99, 0x33, 0xFF}
+	}
+	raylib.DrawText(line.speaker, BOX_X + 10 + shake_x, BOX_Y + 8 + shake_y, 10, speaker_color)
+
+	// Dialogue text
+	raylib.DrawText(line.text, BOX_X + 10 + shake_x, BOX_Y + 24 + shake_y, 10, raylib.WHITE)
+
+	// Prompts
+	prompt: cstring = "ENTER to continue"
+	prompt_w := raylib.MeasureText(prompt, 6)
+	raylib.DrawText(prompt, (SCREEN_WIDTH - prompt_w) / 2, SCREEN_HEIGHT - 14, 6, {150, 150, 150, 255})
+	raylib.DrawText("ESC to skip", SCREEN_WIDTH - 70, 5, 6, {100, 100, 100, 255})
+}
+
+// Phase: Pre-Round
+// ---------------------------------------------------------------------------
+
+@(private = "file")
+update_pre_round :: proc(dt: f32) {
+	if raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) || raylib.IsKeyPressed(.ESCAPE) {
+		start_round()
+	}
+}
+
+@(private = "file")
+draw_pre_round :: proc() {
+	raylib.ClearBackground(raylib.BLACK)
+
+	line1: cstring = "Don't let your blood supply deplete!"
+	line2: cstring = "Killing enemies replenishes your blood points."
+	line3: cstring = "Collect blood for as long as you can..."
+
+	text_size :: i32(10)
+	line_spacing :: i32(18)
+	base_y :: i32(SCREEN_HEIGHT / 2 - 30)
+
+	w1 := raylib.MeasureText(line1, text_size)
+	w2 := raylib.MeasureText(line2, text_size)
+	w3 := raylib.MeasureText(line3, text_size)
+
+	raylib.DrawText(line1, (SCREEN_WIDTH - w1) / 2, base_y, text_size, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
+	raylib.DrawText(line2, (SCREEN_WIDTH - w2) / 2, base_y + line_spacing, text_size, raylib.WHITE)
+	raylib.DrawText(line3, (SCREEN_WIDTH - w3) / 2, base_y + line_spacing * 2, text_size, raylib.WHITE)
+
+	prompt: cstring = "Press ENTER to begin"
+	prompt_w := raylib.MeasureText(prompt, 8)
+	raylib.DrawText(prompt, (SCREEN_WIDTH - prompt_w) / 2, SCREEN_HEIGHT - 40, 8, raylib.Color{150, 150, 150, 255})
+}
+
 // Phase: Playing
 // ---------------------------------------------------------------------------
 
 @(private = "file")
 update_playing :: proc(dt: f32) {
 	if raylib.IsKeyPressed(.ESCAPE) {
+		raylib.PlaySound(gs.sfx_back)
 		gs.phase = .Paused
 		gs.pause_selection = 0
 		gs.pause_show_controls = false
+		gs.pause_show_audio = false
 		return
 	}
 
@@ -617,9 +827,26 @@ update_playing :: proc(dt: f32) {
 	}
 
 	// Gameplay
+	prev_jumps := gs.player.jumps_left
 	update_quick_attack(&gs.player, &gs.companion, &gs.blood_scythe, dt)
 	update_player(&gs.player, &gs.map_data, dt)
 	update_companion(&gs.companion, &gs.player, &gs.blood_scythe, dt)
+
+	// SFX: jump
+	if gs.player.jumps_left < prev_jumps {
+		raylib.PlaySound(gs.sfx_jump)
+	}
+
+	// SFX: footsteps (looping while moving on ground)
+	if gs.player.on_ground && gs.player.moving && !gs.player.dashing {
+		gs.footstep_timer -= dt
+		if gs.footstep_timer <= 0 {
+			gs.footstep_timer = FOOTSTEP_INTERVAL
+			raylib.PlaySound(gs.sfx_footsteps)
+		}
+	} else {
+		gs.footstep_timer = 0
+	}
 	update_blood_scythe(&gs.blood_scythe, &gs.player, &gs.companion, dt)
 	update_enemies(&gs.enemies, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, dt)
 	update_flamewardens(&gs.flamewardens, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, dt)
@@ -649,18 +876,25 @@ draw_playing :: proc() {
 // ---------------------------------------------------------------------------
 
 @(private = "file")
-PAUSE_ITEMS :: [3]cstring{"CONTINUE", "CONTROLS", "QUIT"}
+PAUSE_ITEMS :: [4]cstring{"CONTINUE", "AUDIO", "CONTROLS", "QUIT"}
 
 @(private = "file")
 update_paused :: proc(dt: f32) {
 	if gs.pause_show_controls {
 		if raylib.IsKeyPressed(.ESCAPE) || raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+			raylib.PlaySound(gs.sfx_back)
 			gs.pause_show_controls = false
 		}
 		return
 	}
 
+	if gs.pause_show_audio {
+		update_audio_settings(dt)
+		return
+	}
+
 	if raylib.IsKeyPressed(.ESCAPE) {
+		raylib.PlaySound(gs.sfx_back)
 		gs.phase = .Playing
 		return
 	}
@@ -675,10 +909,16 @@ update_paused :: proc(dt: f32) {
 	if raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
 		switch gs.pause_selection {
 		case 0: // Continue
+			raylib.PlaySound(gs.sfx_confirm)
 			gs.phase = .Playing
-		case 1: // Controls
+		case 1: // Audio
+			raylib.PlaySound(gs.sfx_confirm)
+			gs.pause_show_audio = true
+		case 2: // Controls
+			raylib.PlaySound(gs.sfx_confirm)
 			gs.pause_show_controls = true
-		case 2: // Quit
+		case 3: // Quit
+			raylib.PlaySound(gs.sfx_back)
 			unload_map_data()
 			gs.phase = .Main_Menu
 			gs.menu_selection = 0
@@ -699,6 +939,11 @@ draw_paused :: proc() {
 
 	if gs.pause_show_controls {
 		draw_controls_screen()
+		return
+	}
+
+	if gs.pause_show_audio {
+		draw_audio_settings()
 		return
 	}
 
@@ -832,6 +1077,110 @@ draw_game_over :: proc() {
 	sub : cstring = "Press ENTER to play again"
 	sub_w := raylib.MeasureText(sub, 10)
 	raylib.DrawText(sub, (SCREEN_WIDTH - sub_w) / 2, SCREEN_HEIGHT / 2 + 10, 10, raylib.WHITE)
+}
+
+// ---------------------------------------------------------------------------
+// Audio settings (shared between main menu and pause menu)
+// ---------------------------------------------------------------------------
+
+@(private = "file")
+apply_volumes :: proc() {
+	raylib.SetSoundVolume(gs.sfx_jump, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_footsteps, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_confirm, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_back, gs.sfx_volume)
+	raylib.SetMusicVolume(gs.music_theme, gs.music_volume)
+}
+
+@(private = "file")
+update_audio_settings :: proc(dt: f32) {
+	VOLUME_STEP :: f32(0.1)
+
+	if raylib.IsKeyPressed(.ESCAPE) || raylib.IsKeyPressed(.ENTER) || raylib.IsKeyPressed(.KP_ENTER) {
+		raylib.PlaySound(gs.sfx_back)
+		gs.pause_show_audio = false
+		gs.audio_selection = 0
+		return
+	}
+
+	if raylib.IsKeyPressed(.UP) || raylib.IsKeyPressed(.W) {
+		gs.audio_selection = (gs.audio_selection - 1) %% 2
+	}
+	if raylib.IsKeyPressed(.DOWN) || raylib.IsKeyPressed(.S) {
+		gs.audio_selection = (gs.audio_selection + 1) %% 2
+	}
+
+	if raylib.IsKeyPressed(.LEFT) || raylib.IsKeyPressed(.A) {
+		if gs.audio_selection == 0 {
+			gs.music_volume = max(gs.music_volume - VOLUME_STEP, 0.0)
+		} else {
+			gs.sfx_volume = max(gs.sfx_volume - VOLUME_STEP, 0.0)
+		}
+		apply_volumes()
+	}
+	if raylib.IsKeyPressed(.RIGHT) || raylib.IsKeyPressed(.D) {
+		if gs.audio_selection == 0 {
+			gs.music_volume = min(gs.music_volume + VOLUME_STEP, 1.0)
+		} else {
+			gs.sfx_volume = min(gs.sfx_volume + VOLUME_STEP, 1.0)
+		}
+		apply_volumes()
+		if gs.audio_selection == 1 {
+			raylib.PlaySound(gs.sfx_confirm)
+		}
+	}
+}
+
+@(private = "file")
+draw_audio_settings :: proc() {
+	title: cstring = "AUDIO"
+	title_size :: i32(16)
+	title_w := raylib.MeasureText(title, title_size)
+	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, 80, title_size, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
+
+	label_size :: i32(10)
+	bar_y_base :: i32(130)
+	bar_spacing :: i32(30)
+	bar_x :: i32(260)
+	bar_w :: i32(120)
+	bar_h :: i32(8)
+
+	labels := [2]cstring{"MUSIC", "SFX"}
+	volumes := [2]f32{gs.music_volume, gs.sfx_volume}
+
+	for label, i in labels {
+		y := bar_y_base + i32(i) * bar_spacing
+
+		color: raylib.Color = {150, 150, 150, 255}
+		if i == gs.audio_selection {
+			color = raylib.WHITE
+		}
+
+		// Label
+		label_w := raylib.MeasureText(label, label_size)
+		raylib.DrawText(label, bar_x - label_w - 16, y - 2, label_size, color)
+
+		// Background bar
+		raylib.DrawRectangle(bar_x, y, bar_w, bar_h, raylib.Color{60, 60, 60, 255})
+
+		// Filled portion
+		fill_w := i32(volumes[i] * f32(bar_w))
+		raylib.DrawRectangle(bar_x, y, fill_w, bar_h, color)
+
+		// Percentage text
+		pct := fmt.ctprintf("%d%%", int(volumes[i] * 100 + 0.5))
+		raylib.DrawText(pct, bar_x + bar_w + 8, y - 2, label_size, color)
+
+		// Arrows for selected
+		if i == gs.audio_selection {
+			raylib.DrawText("<", bar_x - 10, y - 2, label_size, raylib.WHITE)
+			raylib.DrawText(">", bar_x + bar_w + 40, y - 2, label_size, raylib.WHITE)
+		}
+	}
+
+	back: cstring = "LEFT/RIGHT to adjust, ESC to go back"
+	back_w := raylib.MeasureText(back, 8)
+	raylib.DrawText(back, (SCREEN_WIDTH - back_w) / 2, 220, 8, raylib.Color{150, 150, 150, 255})
 }
 
 // ---------------------------------------------------------------------------
