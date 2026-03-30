@@ -54,8 +54,10 @@ Game_State :: struct {
 	sfx_hit:          raylib.Sound,
 	sfx_dash:         raylib.Sound,
 	sfx_quick_attack: raylib.Sound,
-	sfx_summon:       raylib.Sound,
-	sfx_despawn:      raylib.Sound,
+	sfx_summon:            raylib.Sound,
+	sfx_despawn:           raylib.Sound,
+	sfx_scythe_attack:     raylib.Sound,
+	sfx_scythe_qa_fang:    raylib.Sound,
 	music_theme:      raylib.Music,
 	music_cutscene:   raylib.Music,
 	sfx_volume:       f32,
@@ -371,6 +373,8 @@ init :: proc() {
 	gs.sfx_quick_attack = raylib.LoadSound("assets/audio/sfx/quick_attacks.wav")
 	gs.sfx_summon = raylib.LoadSound("assets/audio/sfx/summon_scythe_or_fangs.wav")
 	gs.sfx_despawn = raylib.LoadSound("assets/audio/sfx/scythe_or_fangs_despawn.wav")
+	gs.sfx_scythe_attack = raylib.LoadSound("assets/audio/sfx/scythe_attack1.wav")
+	gs.sfx_scythe_qa_fang = raylib.LoadSound("assets/audio/sfx/sythe_attack_two_and_fang_attack.wav")
 	gs.music_theme = raylib.LoadMusicStream("assets/audio/soundtrack/theme.ogg")
 	gs.music_cutscene = raylib.LoadMusicStream("assets/audio/soundtrack/cutscene_w_belial.ogg")
 	gs.sfx_volume = 0.3
@@ -384,6 +388,8 @@ init :: proc() {
 	raylib.SetSoundVolume(gs.sfx_quick_attack, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_summon, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_despawn, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_scythe_attack, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_scythe_qa_fang, gs.sfx_volume)
 	raylib.SetMusicVolume(gs.music_theme, gs.music_volume)
 	raylib.SetMusicVolume(gs.music_cutscene, gs.music_volume)
 	gs.music_theme.looping = true
@@ -518,6 +524,8 @@ shutdown :: proc() {
 	raylib.UnloadSound(gs.sfx_quick_attack)
 	raylib.UnloadSound(gs.sfx_summon)
 	raylib.UnloadSound(gs.sfx_despawn)
+	raylib.UnloadSound(gs.sfx_scythe_attack)
+	raylib.UnloadSound(gs.sfx_scythe_qa_fang)
 	raylib.UnloadMusicStream(gs.music_theme)
 	raylib.UnloadMusicStream(gs.music_cutscene)
 	raylib.CloseAudioDevice()
@@ -902,9 +910,12 @@ update_playing :: proc(dt: f32) {
 		raylib.PlaySound(gs.sfx_quick_attack)
 	}
 
-	// SFX: companion summon/despawn
+	// SFX: companion summon/despawn/attack
 	if prev_comp_state != .Spawning && gs.companion.state == .Spawning {
 		raylib.PlaySound(gs.sfx_summon)
+	}
+	if prev_comp_state != .Attacking && gs.companion.state == .Attacking {
+		raylib.PlaySound(gs.sfx_scythe_qa_fang)
 	}
 	if prev_comp_state != .Despawning && gs.companion.state == .Despawning {
 		raylib.PlaySound(gs.sfx_despawn)
@@ -926,9 +937,15 @@ update_playing :: proc(dt: f32) {
 
 	update_blood_scythe(&gs.blood_scythe, &gs.player, &gs.companion, dt)
 
-	// SFX: scythe summon/despawn
+	// SFX: scythe summon/despawn/attacks
 	if prev_scythe_state != .Spawning && gs.blood_scythe.state == .Spawning {
 		raylib.PlaySound(gs.sfx_summon)
+	}
+	if prev_scythe_state != .Attacking && gs.blood_scythe.state == .Attacking {
+		raylib.PlaySound(gs.sfx_scythe_attack)
+	}
+	if prev_scythe_state != .Quick_Attacking && gs.blood_scythe.state == .Quick_Attacking {
+		raylib.PlaySound(gs.sfx_scythe_qa_fang)
 	}
 	if prev_scythe_state != .Despawning && gs.blood_scythe.state == .Despawning {
 		raylib.PlaySound(gs.sfx_despawn)
@@ -1230,6 +1247,8 @@ apply_volumes :: proc() {
 	raylib.SetSoundVolume(gs.sfx_quick_attack, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_summon, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_despawn, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_scythe_attack, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_scythe_qa_fang, gs.sfx_volume)
 	raylib.SetMusicVolume(gs.music_theme, gs.music_volume)
 	raylib.SetMusicVolume(gs.music_cutscene, gs.music_volume)
 }

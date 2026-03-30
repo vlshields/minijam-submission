@@ -1,4 +1,17 @@
-v0.0.4 (current)
+v0.0.5 (current)
+---------------------------------
+-Patch Notes:
+    - Gamepad support officially added
+    - New sound fx added
+    - Dash sound fx fixed (it is much less annoying now)
+    - Map adjustments
+    - Enemy death animations
+    - Minor screenshake effect added for visual feedback
+- Bugfixes:
+    - Hp bar was erroneously displaying 120/100
+    - Player footsteps effect trailed on even when player was not walking
+
+v0.0.4 
 ---------------------------------
 -Patch Notes:
     - Fixed theme song 

@@ -109,6 +109,9 @@ update_enemies :: proc(
 			continue
 		}
 		if e.state == .Dying {
+			if e.damage_flash_timer > 0 {
+				e.damage_flash_timer -= dt
+			}
 			if advance_enemy_oneshot(e, pool.death_frames, dt) {
 				e.state = .Dead
 			}
@@ -224,7 +227,6 @@ update_enemies :: proc(
 					e.current_frame = 0
 					e.anim_timer = 0
 					e.vel = {}
-					e.damage_flash_timer = 0
 					bp^ += BP_FLAMEBALL_KILL
 				}
 			}
@@ -244,7 +246,6 @@ update_enemies :: proc(
 					e.current_frame = 0
 					e.anim_timer = 0
 					e.vel = {}
-					e.damage_flash_timer = 0
 					bp^ += BP_FLAMEBALL_KILL
 				}
 			}
@@ -263,7 +264,6 @@ update_enemies :: proc(
 					e.current_frame = 0
 					e.anim_timer = 0
 					e.vel = {}
-					e.damage_flash_timer = 0
 					bp^ += BP_FLAMEBALL_KILL
 				}
 			}
@@ -524,6 +524,9 @@ update_devils :: proc(
 			continue
 		}
 		if d.state == .Dying {
+			if d.damage_flash_timer > 0 {
+				d.damage_flash_timer -= dt
+			}
 			if devil_advance_oneshot(d, pool.death_frames, dt) {
 				d.state = .Dead
 			}
@@ -644,7 +647,6 @@ update_devils :: proc(
 					d.current_frame = 0
 					d.anim_timer = 0
 					d.vel = {}
-					d.damage_flash_timer = 0
 					d.bolt_active = false
 					bp^ += BP_DEVIL_KILL
 				}
@@ -665,7 +667,6 @@ update_devils :: proc(
 					d.current_frame = 0
 					d.anim_timer = 0
 					d.vel = {}
-					d.damage_flash_timer = 0
 					d.bolt_active = false
 					bp^ += BP_DEVIL_KILL
 				}
@@ -685,7 +686,6 @@ update_devils :: proc(
 					d.current_frame = 0
 					d.anim_timer = 0
 					d.vel = {}
-					d.damage_flash_timer = 0
 					d.bolt_active = false
 					bp^ += BP_DEVIL_KILL
 				}
@@ -1024,6 +1024,9 @@ update_flamewardens :: proc(
 			continue
 		}
 		if fw.state == .Dying {
+			if fw.damage_flash_timer > 0 {
+				fw.damage_flash_timer -= dt
+			}
 			if fw_advance_oneshot(fw, pool.death_frames, dt) {
 				fw.state = .Dead
 			}
@@ -1221,7 +1224,6 @@ update_flamewardens :: proc(
 					fw.current_frame = 0
 					fw.anim_timer = 0
 					fw.vel = {}
-					fw.damage_flash_timer = 0
 					fw.flame_active = false
 					bp^ += BP_FLAMEWARDEN_KILL
 				}
@@ -1242,7 +1244,6 @@ update_flamewardens :: proc(
 					fw.current_frame = 0
 					fw.anim_timer = 0
 					fw.vel = {}
-					fw.damage_flash_timer = 0
 					fw.flame_active = false
 					bp^ += BP_FLAMEWARDEN_KILL
 				}
@@ -1262,7 +1263,6 @@ update_flamewardens :: proc(
 					fw.current_frame = 0
 					fw.anim_timer = 0
 					fw.vel = {}
-					fw.damage_flash_timer = 0
 					fw.flame_active = false
 					bp^ += BP_FLAMEWARDEN_KILL
 				}
