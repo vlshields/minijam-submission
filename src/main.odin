@@ -14,6 +14,7 @@ Game_Phase :: enum {
 	Playing,
 	Paused,
 	Round_Won,
+	Game_Won,
 	Game_Over,
 }
 
@@ -182,15 +183,8 @@ unload_map_data :: proc() {
 
 @(private = "file")
 start_round :: proc() {
-	is_endless := gs.current_round >= ROUND_COUNT
-	map_path: string
-	if is_endless {
-		endless_maps := ENDLESS_MAPS
-		map_path = endless_maps[rand.int_max(len(endless_maps))]
-	} else {
-		round_maps := ROUND_MAPS
-		map_path = round_maps[gs.current_round]
-	}
+	round_maps := ROUND_MAPS
+	map_path := round_maps[gs.current_round]
 	if !load_map_data(map_path) {
 		gs.should_quit = true
 		return
@@ -338,25 +332,7 @@ start_round :: proc() {
 		}
 	}
 
-	// Compute enemy scale for endless rounds (10% increase per round)
-	if is_endless {
-		gs.enemy_scale = math.pow(f32(ENDLESS_SCALE_PER_ROUND), f32(gs.current_round - ROUND_COUNT + 1))
-	} else {
-		gs.enemy_scale = 1.0
-	}
-
-	// Scale enemy HP for endless rounds
-	if gs.enemy_scale > 1.0 {
-		for i := 0; i < gs.enemies.count; i += 1 {
-			gs.enemies.enemies[i].hp *= gs.enemy_scale
-		}
-		for i := 0; i < gs.flamewardens.count; i += 1 {
-			gs.flamewardens.wardens[i].hp *= gs.enemy_scale
-		}
-		for i := 0; i < gs.devils.count; i += 1 {
-			gs.devils.devils[i].hp *= gs.enemy_scale
-		}
-	}
+	gs.enemy_scale = 1.0
 
 	// BP: first round starts fresh, later rounds carry over with floor
 	if gs.current_round == 0 {
@@ -365,12 +341,8 @@ start_round :: proc() {
 		gs.blood_points = BP_MIN_CARRY
 	}
 
-	if is_endless {
-		gs.round_timer = ENDLESS_ROUND_DURATION
-	} else {
-		durations := ROUND_DURATIONS
-		gs.round_timer = durations[gs.current_round]
-	}
+	durations := ROUND_DURATIONS
+	gs.round_timer = durations[gs.current_round]
 	gs.bp_drain_timer = BP_DRAIN_INTERVAL
 	gs.phase = .Playing
 	gs.phase_timer = 0
@@ -518,6 +490,8 @@ update :: proc() {
 		update_paused(dt)
 	case .Round_Won:
 		update_round_won(dt)
+	case .Game_Won:
+		update_game_won(dt)
 	case .Game_Over:
 		update_game_over(dt)
 	}
@@ -539,6 +513,8 @@ update :: proc() {
 		draw_paused()
 	case .Round_Won:
 		draw_round_won()
+	case .Game_Won:
+		draw_game_won()
 	case .Game_Over:
 		draw_game_over()
 	}
@@ -1006,9 +982,9 @@ update_playing :: proc(dt: f32) {
 	update_devils(&gs.devils, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, dt)
 	update_ember_demon(&gs.ember_demon, &gs.player, &gs.companion, &gs.blood_scythe, &gs.map_data, &gs.blood_points, gs.sfx_hit, dt)
 
-	// Boss round win condition
+	// Boss defeated — game won
 	if gs.ember_demon.active && gs.ember_demon.state == .Dead {
-		gs.phase = .Round_Won
+		gs.phase = .Game_Won
 		gs.phase_timer = 3.0
 		return
 	}
@@ -1305,7 +1281,12 @@ update_round_won :: proc(dt: f32) {
 	if gs.phase_timer <= 0 || input_confirm() {
 		unload_map_data()
 		gs.current_round += 1
-		start_round()
+		if gs.current_round >= ROUND_COUNT {
+			gs.current_round = 0
+			gs.phase = .Main_Menu
+		} else {
+			start_round()
+		}
 	}
 }
 
@@ -1328,6 +1309,40 @@ draw_round_won :: proc() {
 	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, SCREEN_HEIGHT / 2 - 20, 20, raylib.WHITE)
 
 	sub : cstring = gamepad_active() ? "Press A to continue" : "Press ENTER to continue"
+	sub_w := raylib.MeasureText(sub, 10)
+	raylib.DrawText(sub, (SCREEN_WIDTH - sub_w) / 2, SCREEN_HEIGHT / 2 + 10, 10, raylib.Color{200, 200, 200, 255})
+}
+
+// ---------------------------------------------------------------------------
+// Phase: Game Won
+// ---------------------------------------------------------------------------
+
+@(private = "file")
+update_game_won :: proc(dt: f32) {
+	gs.phase_timer -= dt
+	if gs.phase_timer <= 0 && input_confirm() {
+		unload_map_data()
+		gs.current_round = 0
+		gs.phase = .Main_Menu
+	}
+}
+
+@(private = "file")
+draw_game_won :: proc() {
+	draw_parallax_bg()
+	raylib.BeginMode2D(gs.camera)
+	draw_map()
+	draw_ember_demon(&gs.ember_demon, gs.white_flash_shader)
+	draw_player(&gs.player, gs.white_flash_shader)
+	raylib.EndMode2D()
+
+	raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, 160})
+
+	title : cstring = "VICTORY"
+	title_w := raylib.MeasureText(title, 20)
+	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, SCREEN_HEIGHT / 2 - 20, 20, raylib.Color{0xFF, 0xD7, 0x00, 0xFF})
+
+	sub : cstring = gamepad_active() ? "Press A to return to menu" : "Press ENTER to return to menu"
 	sub_w := raylib.MeasureText(sub, 10)
 	raylib.DrawText(sub, (SCREEN_WIDTH - sub_w) / 2, SCREEN_HEIGHT / 2 + 10, 10, raylib.Color{200, 200, 200, 255})
 }

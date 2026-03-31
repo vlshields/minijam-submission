@@ -143,13 +143,14 @@ BP_FLAMEWARDEN_KILL :: 5
 BP_MIN_CARRY        :: 25
 
 // Rounds (scripted)
-ROUND_COUNT :: 4
-ROUND_DURATIONS : [ROUND_COUNT]f32 : {17.0, 30.0, 50.0, 0.0}
+ROUND_COUNT :: 5
+ROUND_DURATIONS : [ROUND_COUNT]f32 : {17.0, 30.0, 50.0, 60.0, 0.0}
 ROUND_MAPS : [ROUND_COUNT]string : {
 	"assets/maps/main_area_first.map",
 	"assets/maps/level2.map",
 	"assets/maps/level3.map",
 	"assets/maps/level4.map",
+	"assets/maps/level_final.map",
 }
 
 // Parallax background
@@ -159,11 +160,3 @@ PARALLAX_SPEEDS : [PARALLAX_LAYER_COUNT]f32 : {0.02, 0.2, 0.08}
 // Back-to-front draw order: sky, stars, buildings
 PARALLAX_DRAW_ORDER : [PARALLAX_LAYER_COUNT]int : {0, 2, 1}
 
-// Endless mode (round 4+)
-ENDLESS_ROUND_DURATION  :: 60.0
-ENDLESS_SCALE_PER_ROUND :: 1.1
-ENDLESS_MAPS : [3]string : {
-	"assets/maps/main_area_first.map",
-	"assets/maps/level2.map",
-	"assets/maps/level3.map",
-}
