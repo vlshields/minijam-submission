@@ -991,9 +991,11 @@ devil_advance_bolt :: proc(d: ^Devil, total_frames: int, dt: f32) {
 
 @(private = "file")
 devil_start_impact :: proc(d: ^Devil) {
+	// Record bolt position before deactivating
+	rect := devil_get_bolt_draw_rect(d)
 	d.bolt_active = false
 	d.impact_active = true
-	d.impact_pos = d.is_ranged ? d.bolt_pos : raylib.Vector2{d.pos.x, d.pos.y - f32(DEVIL_DRAW_SIZE) / 2}
+	d.impact_pos = {rect.x + rect.width / 2, rect.y + rect.height / 2}
 	d.impact_frame = 0
 	d.impact_anim_timer = 0
 }

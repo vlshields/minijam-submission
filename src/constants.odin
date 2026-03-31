@@ -95,6 +95,35 @@ DEVIL_RANGED_ATTACK_RANGE  :: 240.0
 DEVIL_RANGED_BOLT_SPEED    :: 400.0
 MAX_DEVILS                 :: 16
 
+// Ember Demon (Boss)
+ED_SRC_SIZE              :: 16
+ED_HITBOX_W              :: 12
+ED_HITBOX_H              :: 14
+ED_HP                    :: 600.0
+ED_SPEED                 :: 70.0
+ED_ANIM_FPS              :: 10.0
+ED_BREATH_RANGE          :: 28.0
+ED_BREATH_DAMAGE         :: 21.0
+ED_BREATH_COOLDOWN       :: 2.5
+ED_BREATH_LOOP_DURATION  :: 0.8
+ED_BREATH_SRC_SIZE       :: 32
+ED_METEOR_DAMAGE         :: 25.0
+ED_METEOR_INTERVAL       :: 3.5
+ED_METEOR_SRC_SIZE       :: 32
+ED_METEOR_FALL_SPEED     :: 180.0
+ED_METEOR_SPAWN_HEIGHT   :: 80.0
+ED_MAGMA_DAMAGE          :: 18.0
+ED_MAGMA_INTERVAL        :: 5.0
+ED_MAGMA_SRC_SIZE        :: 32
+ED_MAGMA_LOOP_DURATION   :: 1.5
+ED_TELEPORT_THRESHOLD    :: 100.0
+ED_TELEPORT_DURATION     :: 0.5
+ED_DAMAGE_WINDOW         :: 1.0
+ED_MAX_METEORS           :: 4
+ED_MAX_MAGMA             :: 3
+ED_MAX_TELEPORT_POINTS   :: 16
+ED_BP_KILL               :: 50
+
 // Damage flash
 DAMAGE_FLASH_DURATION  :: 0.15
 
@@ -114,12 +143,13 @@ BP_FLAMEWARDEN_KILL :: 5
 BP_MIN_CARRY        :: 25
 
 // Rounds (scripted)
-ROUND_COUNT :: 3
-ROUND_DURATIONS : [ROUND_COUNT]f32 : {17.0, 30.0, 50.0}
+ROUND_COUNT :: 4
+ROUND_DURATIONS : [ROUND_COUNT]f32 : {17.0, 30.0, 50.0, 0.0}
 ROUND_MAPS : [ROUND_COUNT]string : {
 	"assets/maps/main_area_first.map",
 	"assets/maps/level2.map",
 	"assets/maps/level3.map",
+	"assets/maps/level4.map",
 }
 
 // Parallax background

@@ -27,6 +27,7 @@ Game_State :: struct {
 	enemies:            Enemy_Pool,
 	flamewardens:       FW_Pool,
 	devils:             Devil_Pool,
+	ember_demon:        Ember_Demon,
 	white_flash_shader: raylib.Shader,
 	render_target:      raylib.RenderTexture2D,
 	screen_scale:   f32,
@@ -295,6 +296,48 @@ start_round :: proc() {
 		}
 	}
 
+	// Ember Demon boss
+	gs.ember_demon.active = false
+	gs.ember_demon.teleport_count = 0
+	for row, ry in gs.map_data.grid {
+		for cell, cx in row {
+			if cell.symbol == 'B' {
+				td, has_meta := gs.map_data.metadata['B']
+				if has_meta {
+					spawn_key := dm.extract_kv(td.other, "spawn_point")
+					is_boss := spawn_key == "ember_demon"
+					delete(spawn_key)
+					if is_boss {
+						pos := raylib.Vector2{
+							f32(cx) * TILE_SIZE + TILE_SIZE / 2,
+							f32(ry) * TILE_SIZE,
+						}
+						spawn_ember_demon(&gs.ember_demon, pos)
+					}
+				}
+			}
+		}
+	}
+	for row, ry in gs.map_data.grid {
+		for cell, cx in row {
+			if cell.symbol == 't' {
+				td, has_meta := gs.map_data.metadata['t']
+				if has_meta {
+					tp_key := dm.extract_kv(td.other, "teleport_point")
+					is_ed_tp := tp_key == "ember_demon"
+					delete(tp_key)
+					if is_ed_tp {
+						pos := raylib.Vector2{
+							f32(cx) * TILE_SIZE + TILE_SIZE / 2,
+							f32(ry) * TILE_SIZE,
+						}
+						add_ember_demon_teleport(&gs.ember_demon, pos)
+					}
+				}
+			}
+		}
+	}
+
 	// Compute enemy scale for endless rounds (10% increase per round)
 	if is_endless {
 		gs.enemy_scale = math.pow(f32(ENDLESS_SCALE_PER_ROUND), f32(gs.current_round - ROUND_COUNT + 1))
@@ -408,6 +451,7 @@ init :: proc() {
 	init_enemies(&gs.enemies)
 	init_flamewardens(&gs.flamewardens)
 	init_devils(&gs.devils)
+	init_ember_demon(&gs.ember_demon)
 
 	// Camera
 	gs.camera = raylib.Camera2D{
@@ -544,6 +588,7 @@ shutdown :: proc() {
 	unload_enemies(&gs.enemies)
 	unload_flamewardens(&gs.flamewardens)
 	unload_devils(&gs.devils)
+	unload_ember_demon(&gs.ember_demon)
 	raylib.CloseWindow()
 }
 
@@ -959,6 +1004,14 @@ update_playing :: proc(dt: f32) {
 	update_enemies(&gs.enemies, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, dt)
 	update_flamewardens(&gs.flamewardens, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, dt)
 	update_devils(&gs.devils, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, dt)
+	update_ember_demon(&gs.ember_demon, &gs.player, &gs.companion, &gs.blood_scythe, &gs.map_data, &gs.blood_points, gs.sfx_hit, dt)
+
+	// Boss round win condition
+	if gs.ember_demon.active && gs.ember_demon.state == .Dead {
+		gs.phase = .Round_Won
+		gs.phase_timer = 3.0
+		return
+	}
 
 	// SFX: player got hit + screenshake
 	if prev_player_flash <= 0 && gs.player.damage_flash_timer > 0 {
@@ -982,6 +1035,9 @@ update_playing :: proc(dt: f32) {
 				if d.state != .Dead && d.damage_flash_timer == DAMAGE_FLASH_DURATION { hit_detected = true; break }
 			}
 		}
+		if !hit_detected && gs.ember_demon.active && gs.ember_demon.state != .Dead && gs.ember_demon.damage_flash_timer == DAMAGE_FLASH_DURATION {
+			hit_detected = true
+		}
 		if hit_detected {
 			gs.screen_shake = SCREENSHAKE_DURATION
 		}
@@ -998,6 +1054,7 @@ draw_playing :: proc() {
 	draw_enemies(&gs.enemies, gs.white_flash_shader)
 	draw_flamewardens(&gs.flamewardens, gs.white_flash_shader)
 	draw_devils(&gs.devils, gs.white_flash_shader)
+	draw_ember_demon(&gs.ember_demon, gs.white_flash_shader)
 	draw_player(&gs.player, gs.white_flash_shader)
 	draw_companion(&gs.companion, &gs.player)
 	draw_blood_scythe(&gs.blood_scythe, &gs.player)
@@ -1005,6 +1062,7 @@ draw_playing :: proc() {
 
 	draw_player_hud(&gs.player)
 	draw_bp_hud(gs.blood_points, gs.round_timer, gs.current_round)
+	draw_boss_hp_bar(&gs.ember_demon)
 }
 
 // ---------------------------------------------------------------------------
@@ -1259,6 +1317,7 @@ draw_round_won :: proc() {
 	draw_enemies(&gs.enemies, gs.white_flash_shader)
 	draw_flamewardens(&gs.flamewardens, gs.white_flash_shader)
 	draw_devils(&gs.devils, gs.white_flash_shader)
+	draw_ember_demon(&gs.ember_demon, gs.white_flash_shader)
 	draw_player(&gs.player, gs.white_flash_shader)
 	raylib.EndMode2D()
 
