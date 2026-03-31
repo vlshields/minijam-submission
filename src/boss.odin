@@ -29,7 +29,6 @@ ED_Breath_Phase :: enum {
 }
 
 ED_Meteor_Phase :: enum {
-	Spawning,
 	Falling,
 	Impact,
 }
@@ -106,7 +105,6 @@ Ember_Demon :: struct {
 	breath_start_tex:      raylib.Texture2D,
 	breath_loop_tex:       raylib.Texture2D,
 	breath_end_tex:        raylib.Texture2D,
-	meteor_spawn_tex:      raylib.Texture2D,
 	meteor_fall_tex:       raylib.Texture2D,
 	meteor_impact_tex:     raylib.Texture2D,
 	magma_start_tex:       raylib.Texture2D,
@@ -119,7 +117,6 @@ Ember_Demon :: struct {
 	breath_start_frames:   int,
 	breath_loop_frames:    int,
 	breath_end_frames:     int,
-	meteor_spawn_frames:   int,
 	meteor_fall_frames:    int,
 	meteor_impact_frames:  int,
 	magma_start_frames:    int,
@@ -137,7 +134,6 @@ init_ember_demon :: proc(ed: ^Ember_Demon) {
 	ed.breath_start_tex = raylib.LoadTexture("assets/sprites/emberbreath_start.png")
 	ed.breath_loop_tex = raylib.LoadTexture("assets/sprites/emberbreath_loop.png")
 	ed.breath_end_tex = raylib.LoadTexture("assets/sprites/emberbreath_end.png")
-	ed.meteor_spawn_tex = raylib.LoadTexture("assets/sprites/meteor_spawns.png")
 	ed.meteor_fall_tex = raylib.LoadTexture("assets/sprites/meteor_falling.png")
 	ed.meteor_impact_tex = raylib.LoadTexture("assets/sprites/meteor_impact.png")
 	ed.magma_start_tex = raylib.LoadTexture("assets/sprites/magma_floor_start.png")
@@ -149,7 +145,6 @@ init_ember_demon :: proc(ed: ^Ember_Demon) {
 	ed.breath_start_frames = int(ed.breath_start_tex.width) / ED_BREATH_SRC_SIZE
 	ed.breath_loop_frames = int(ed.breath_loop_tex.width) / ED_BREATH_SRC_SIZE
 	ed.breath_end_frames = int(ed.breath_end_tex.width) / ED_BREATH_SRC_SIZE
-	ed.meteor_spawn_frames = int(ed.meteor_spawn_tex.width) / ED_METEOR_SRC_SIZE
 	ed.meteor_fall_frames = int(ed.meteor_fall_tex.width) / ED_METEOR_SRC_SIZE
 	ed.meteor_impact_frames = int(ed.meteor_impact_tex.width) / ED_METEOR_SRC_SIZE
 	ed.magma_start_frames = int(ed.magma_start_tex.width) / ED_MAGMA_SRC_SIZE
@@ -203,7 +198,6 @@ unload_ember_demon :: proc(ed: ^Ember_Demon) {
 	raylib.UnloadTexture(ed.breath_start_tex)
 	raylib.UnloadTexture(ed.breath_loop_tex)
 	raylib.UnloadTexture(ed.breath_end_tex)
-	raylib.UnloadTexture(ed.meteor_spawn_tex)
 	raylib.UnloadTexture(ed.meteor_fall_tex)
 	raylib.UnloadTexture(ed.meteor_impact_tex)
 	raylib.UnloadTexture(ed.magma_start_tex)
@@ -477,7 +471,7 @@ ed_spawn_meteor :: proc(ed: ^Ember_Demon, player: ^Player, map_data: ^dm.Dot_Map
 	}
 
 	slot.active = true
-	slot.phase = .Spawning
+	slot.phase = .Falling
 	slot.target_pos = {target_x, ground_y}
 	slot.pos = {target_x, ground_y - ED_METEOR_SPAWN_HEIGHT}
 	slot.frame = 0
@@ -495,17 +489,6 @@ ed_update_meteors :: proc(ed: ^Ember_Demon, player: ^Player, sfx_hit: raylib.Sou
 		}
 
 		switch m.phase {
-		case .Spawning:
-			m.anim_timer += dt
-			if m.anim_timer >= frame_dur {
-				m.anim_timer -= frame_dur
-				m.frame += 1
-				if int(m.frame) >= ed.meteor_spawn_frames {
-					m.phase = .Falling
-					m.frame = 0
-					m.anim_timer = 0
-				}
-			}
 		case .Falling:
 			m.anim_timer += dt
 			if m.anim_timer >= frame_dur {
@@ -885,21 +868,6 @@ draw_ember_demon :: proc(ed: ^Ember_Demon, white_shader: raylib.Shader) {
 			continue
 		}
 		switch m.phase {
-		case .Spawning:
-			sf := int(m.frame)
-			if sf >= ed.meteor_spawn_frames {
-				sf = ed.meteor_spawn_frames - 1
-			}
-			src := raylib.Rectangle{
-				f32(sf * ED_METEOR_SRC_SIZE), 0,
-				f32(ED_METEOR_SRC_SIZE), f32(ED_METEOR_SRC_SIZE),
-			}
-			dst := raylib.Rectangle{
-				m.target_pos.x - f32(ED_METEOR_SRC_SIZE) / 2,
-				m.target_pos.y - f32(ED_METEOR_SRC_SIZE),
-				f32(ED_METEOR_SRC_SIZE), f32(ED_METEOR_SRC_SIZE),
-			}
-			raylib.DrawTexturePro(ed.meteor_spawn_tex, src, dst, {0, 0}, 0, raylib.WHITE)
 		case .Falling:
 			ff := int(m.frame)
 			if ff >= ed.meteor_fall_frames {

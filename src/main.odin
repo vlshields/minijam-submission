@@ -77,12 +77,14 @@ Game_State :: struct {
 	controls_listening: bool,
 
 	// Main menu
-	menu_selection:  int,
-	menu_timer:      f32,
-	menu_title_y:    f32,
-	menu_items_x:    f32,
-	menu_fall_frame: f32,
-	menu_fall_timer: f32,
+	menu_selection:    int,
+	menu_timer:        f32,
+	menu_title_y:      f32,
+	menu_items_x:      f32,
+	menu_fall_frame:   f32,
+	menu_fall_timer:   f32,
+	menu_show_options: bool,
+	options_selection: int,
 
 	// Cutscene
 	cutscene_line:   int,
@@ -589,6 +591,40 @@ set_web_mouse_down :: proc(down: bool) {
 
 @(private = "file")
 update_main_menu :: proc(dt: f32) {
+	// Options sub-screen (early out to skip animations)
+	if gs.menu_show_options {
+		if gs.pause_show_controls {
+			update_controls_screen()
+			return
+		}
+		if gs.pause_show_audio {
+			update_audio_settings(dt)
+			return
+		}
+		if input_back() {
+			raylib.PlaySound(gs.sfx_back)
+			gs.menu_show_options = false
+			gs.options_selection = 0
+			return
+		}
+		if input_menu_down() {
+			gs.options_selection = (gs.options_selection + 1) %% 2
+		}
+		if input_menu_up() {
+			gs.options_selection = (gs.options_selection - 1) %% 2
+		}
+		if input_confirm() {
+			raylib.PlaySound(gs.sfx_confirm)
+			switch gs.options_selection {
+			case 0: // Audio
+				gs.pause_show_audio = true
+			case 1: // Controls
+				gs.pause_show_controls = true
+			}
+		}
+		return
+	}
+
 	gs.menu_timer += dt
 
 	// Title slide-in (cubic ease-out, 0.8s)
@@ -643,17 +679,12 @@ update_main_menu :: proc(dt: f32) {
 			} else {
 				start_round()
 			}
-		case 1: // Options (audio)
+		case 1: // Options
 			raylib.PlaySound(gs.sfx_confirm)
-			gs.pause_show_audio = true
+			gs.menu_show_options = true
 		case 2: // Quit
 			gs.should_quit = true
 		}
-	}
-
-	// Audio settings sub-screen
-	if gs.pause_show_audio {
-		update_audio_settings(dt)
 	}
 }
 
@@ -703,10 +734,50 @@ draw_main_menu :: proc() {
 	arrow_y := item_base_y + i32(gs.menu_selection) * item_spacing
 	raylib.DrawText(">", arrow_x, arrow_y, item_size, raylib.WHITE)
 
-	// Audio settings overlay
-	if gs.pause_show_audio {
-		raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, 200})
-		draw_audio_settings()
+	// Options overlay
+	if gs.menu_show_options {
+		raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, 255})
+
+		if gs.pause_show_controls {
+			draw_controls_screen()
+			return
+		}
+		if gs.pause_show_audio {
+			draw_audio_settings()
+			return
+		}
+
+		opt_title: cstring = "OPTIONS"
+		opt_title_size :: i32(16)
+		opt_title_w := raylib.MeasureText(opt_title, opt_title_size)
+		raylib.DrawText(opt_title, (SCREEN_WIDTH - opt_title_w) / 2, 90, opt_title_size, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
+
+		opt_items := [2]cstring{"AUDIO", "CONTROLS"}
+		opt_item_size :: i32(10)
+		opt_base_y :: i32(140)
+		opt_spacing :: i32(20)
+
+		for item, i in opt_items {
+			iw := raylib.MeasureText(item, opt_item_size)
+			ix := (SCREEN_WIDTH - iw) / 2
+			iy := opt_base_y + i32(i) * opt_spacing
+			color := raylib.Color{150, 150, 150, 255}
+			if i == gs.options_selection {
+				color = raylib.WHITE
+			}
+			raylib.DrawText(item, ix, iy, opt_item_size, color)
+		}
+
+		sel_opt := opt_items[gs.options_selection]
+		sel_opt_w := raylib.MeasureText(sel_opt, opt_item_size)
+		opt_arrow_x := (SCREEN_WIDTH - sel_opt_w) / 2 - 12
+		opt_arrow_y := opt_base_y + i32(gs.options_selection) * opt_spacing
+		raylib.DrawText(">", opt_arrow_x, opt_arrow_y, opt_item_size, raylib.WHITE)
+
+		hint: cstring = "Press ESC to go back"
+		hint_size :: i32(8)
+		hint_w := raylib.MeasureText(hint, hint_size)
+		raylib.DrawText(hint, (SCREEN_WIDTH - hint_w) / 2, 220, hint_size, raylib.Color{150, 150, 150, 255})
 		return
 	}
 

@@ -1,4 +1,13 @@
-v0.0.5 (current)
+v0.0.6 (current)
+---------------------------------
+-Patch Notes:
+    - Boss fight added
+    - Player can now remap controls
+    - New maps (level4, level_final)
+- Bugfixes:
+    - Fixed gamebreaking typo in boss map
+
+v0.0.5
 ---------------------------------
 -Patch Notes:
     - Gamepad support officially added
