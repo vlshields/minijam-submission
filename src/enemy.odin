@@ -434,6 +434,13 @@ Devil :: struct {
 	bolt_anim_timer:    f32,
 	bolt_active:        bool,
 	bolt_dealt_damage:  bool,
+	is_ranged:          bool,
+	bolt_pos:           raylib.Vector2,
+	bolt_dir:           raylib.Vector2,
+	impact_active:      bool,
+	impact_pos:         raylib.Vector2,
+	impact_frame:       f32,
+	impact_anim_timer:  f32,
 	hit_by_companion:   bool,
 	hit_by_scythe:      bool,
 }
@@ -445,11 +452,13 @@ Devil_Pool :: struct {
 	move_tex:      raylib.Texture2D,
 	attack_tex:    raylib.Texture2D,
 	bolt_tex:      raylib.Texture2D,
+	impact_tex:    raylib.Texture2D,
 	death_tex:     raylib.Texture2D,
 	idle_frames:   int,
 	move_frames:   int,
 	attack_frames: int,
 	bolt_frames:   int,
+	impact_frames: int,
 	death_frames:  int,
 }
 
@@ -459,11 +468,13 @@ init_devils :: proc(pool: ^Devil_Pool) {
 	pool.move_tex = raylib.LoadTexture("assets/sprites/enemy_devil_move.png")
 	pool.attack_tex = raylib.LoadTexture("assets/sprites/enemy_devil_attack.png")
 	pool.bolt_tex = raylib.LoadTexture("assets/sprites/enemy_devil_flamebolt.png")
+	pool.impact_tex = raylib.LoadTexture("assets/sprites/firebolt_impact.png")
 	pool.death_tex = raylib.LoadTexture("assets/sprites/enemy_devil_death.png")
 	pool.idle_frames = int(pool.idle_tex.width) / DEVIL_SRC_SIZE
 	pool.move_frames = int(pool.move_tex.width) / DEVIL_SRC_SIZE
 	pool.attack_frames = int(pool.attack_tex.width) / DEVIL_SRC_SIZE
 	pool.bolt_frames = int(pool.bolt_tex.width) / DEVIL_BOLT_SRC_SIZE
+	pool.impact_frames = int(pool.impact_tex.width) / DEVIL_BOLT_SRC_SIZE
 	pool.death_frames = int(pool.death_tex.width) / DEVIL_SRC_SIZE
 	pool.count = 0
 }
@@ -486,6 +497,10 @@ spawn_devil :: proc(pool: ^Devil_Pool, pos: raylib.Vector2) {
 	d.damage_flash_timer = 0
 	d.bolt_active = false
 	d.bolt_dealt_damage = false
+	d.is_ranged = raylib.GetRandomValue(1, 100) <= 15
+	d.bolt_pos = {}
+	d.bolt_dir = {}
+	d.impact_active = false
 	pool.count += 1
 }
 
@@ -494,6 +509,7 @@ unload_devils :: proc(pool: ^Devil_Pool) {
 	raylib.UnloadTexture(pool.move_tex)
 	raylib.UnloadTexture(pool.attack_tex)
 	raylib.UnloadTexture(pool.bolt_tex)
+	raylib.UnloadTexture(pool.impact_tex)
 	raylib.UnloadTexture(pool.death_tex)
 }
 
@@ -561,8 +577,9 @@ update_devils :: proc(
 		case .Pursuing:
 			d.facing_left = player.pos.x < d.pos.x
 			dist_x := abs(player.pos.x - d.pos.x)
+			attack_range: f32 = d.is_ranged ? DEVIL_RANGED_ATTACK_RANGE : DEVIL_ATTACK_RANGE
 
-			if dist_x <= DEVIL_ATTACK_RANGE {
+			if dist_x <= attack_range {
 				d.state = .Attacking
 				d.current_frame = 0
 				d.anim_timer = 0
@@ -571,6 +588,11 @@ update_devils :: proc(
 				d.bolt_frame = 0
 				d.bolt_anim_timer = 0
 				d.bolt_dealt_damage = false
+				if d.is_ranged {
+					bolt_off: f32 = d.facing_left ? -f32(DEVIL_DRAW_SIZE) / 2 : f32(DEVIL_DRAW_SIZE) / 2
+					d.bolt_pos = {d.pos.x + bolt_off, d.pos.y - f32(DEVIL_DRAW_SIZE) / 2}
+					d.bolt_dir = {d.facing_left ? -1.0 : 1.0, 0}
+				}
 			} else {
 				d.vel.x = d.facing_left ? -DEVIL_SPEED * scale : DEVIL_SPEED * scale
 				devil_animate_loop(d, pool.move_frames, dt)
@@ -590,6 +612,11 @@ update_devils :: proc(
 			// Advance bolt animation
 			devil_advance_bolt(d, pool.bolt_frames, dt)
 
+			// Move ranged bolt projectile
+			if d.is_ranged && d.bolt_active {
+				d.bolt_pos.x += d.bolt_dir.x * DEVIL_RANGED_BOLT_SPEED * dt
+			}
+
 			// Check bolt collision with player
 			if d.bolt_active && !d.bolt_dealt_damage {
 				bolt_rect := devil_get_bolt_rect(d)
@@ -602,11 +629,14 @@ update_devils :: proc(
 						player.hp = 0
 					}
 					d.bolt_dealt_damage = true
+					devil_start_impact(d)
 				}
 			}
 
 			if done {
-				d.bolt_active = false
+				if !d.is_ranged {
+					d.bolt_active = false
+				}
 				d.state = .Cooldown
 				d.state_timer = DEVIL_ATTACK_COOLDOWN
 				d.current_frame = 0
@@ -614,19 +644,64 @@ update_devils :: proc(
 			}
 
 		case .Cooldown:
-			devil_animate_loop(d, pool.move_frames, dt)
 			d.vel.x = 0
+			// Ranged: back away to maintain distance
+			if d.is_ranged {
+				d.facing_left = player.pos.x < d.pos.x
+				cdist := abs(player.pos.x - d.pos.x)
+				if cdist < DEVIL_RANGED_ATTACK_RANGE {
+					d.vel.x = d.facing_left ? DEVIL_SPEED * scale : -DEVIL_SPEED * scale
+				}
+			}
+			devil_animate_loop(d, pool.move_frames, dt)
 			devil_apply_gravity(d, dt)
 			devil_move_and_collide(d, map_data, dt)
 
+			// Continue ranged bolt in flight
+			if d.is_ranged && d.bolt_active {
+				d.bolt_pos.x += d.bolt_dir.x * DEVIL_RANGED_BOLT_SPEED * dt
+				devil_advance_bolt(d, pool.bolt_frames, dt)
+				if abs(d.bolt_pos.x - d.pos.x) > DEVIL_RANGED_ATTACK_RANGE + 80 {
+					d.bolt_active = false
+				}
+				if d.bolt_active && !d.bolt_dealt_damage {
+					bolt_rect := devil_get_bolt_rect(d)
+					player_rect := get_hitbox(player)
+					if raylib.CheckCollisionRecs(bolt_rect, player_rect) && !player.dashing {
+						player.hp -= DEVIL_DAMAGE * scale
+						player.damage_flash_timer = DAMAGE_FLASH_DURATION
+						raylib.PlaySound(sfx_hit)
+						if player.hp < 0 {
+							player.hp = 0
+						}
+						d.bolt_dealt_damage = true
+						devil_start_impact(d)
+					}
+				}
+			}
+
 			d.state_timer -= dt
 			if d.state_timer <= 0 {
+				d.bolt_active = false
 				d.state = .Pursuing
 				d.current_frame = 0
 				d.anim_timer = 0
 			}
 
 		case .Dying, .Dead:
+		}
+
+		// Advance impact animation (independent of state)
+		if d.impact_active {
+			frame_dur: f32 = 1.0 / DEVIL_ANIM_FPS
+			d.impact_anim_timer += dt
+			if d.impact_anim_timer >= frame_dur {
+				d.impact_anim_timer -= frame_dur
+				d.impact_frame += 1
+				if int(d.impact_frame) >= pool.impact_frames {
+					d.impact_active = false
+				}
+			}
 		}
 
 		// Reset hit flags when attacks end
@@ -767,6 +842,26 @@ draw_devils :: proc(pool: ^Devil_Pool, white_shader: raylib.Shader) {
 			bolt_dst := devil_get_bolt_draw_rect(d)
 			raylib.DrawTexturePro(pool.bolt_tex, bolt_src, bolt_dst, {0, 0}, 0, raylib.WHITE)
 		}
+
+		// Draw impact animation
+		if d.impact_active {
+			imp_f := int(d.impact_frame)
+			if imp_f >= pool.impact_frames {
+				imp_f = pool.impact_frames - 1
+			}
+			imp_src := raylib.Rectangle{
+				f32(imp_f * DEVIL_BOLT_SRC_SIZE), 0,
+				d.facing_left ? -f32(DEVIL_BOLT_SRC_SIZE) : f32(DEVIL_BOLT_SRC_SIZE),
+				f32(DEVIL_BOLT_SRC_SIZE),
+			}
+			imp_dst := raylib.Rectangle{
+				d.impact_pos.x - f32(DEVIL_BOLT_SRC_SIZE) / 2,
+				d.impact_pos.y - f32(DEVIL_BOLT_SRC_SIZE) / 2,
+				f32(DEVIL_BOLT_SRC_SIZE),
+				f32(DEVIL_BOLT_SRC_SIZE),
+			}
+			raylib.DrawTexturePro(pool.impact_tex, imp_src, imp_dst, {0, 0}, 0, raylib.WHITE)
+		}
 	}
 }
 
@@ -783,7 +878,15 @@ devil_get_hitbox :: proc(d: ^Devil) -> raylib.Rectangle {
 
 @(private = "file")
 devil_get_bolt_draw_rect :: proc(d: ^Devil) -> raylib.Rectangle {
-	// Position bolt sprite in front of the devil, centered on its body
+	if d.is_ranged {
+		return {
+			d.bolt_pos.x - f32(DEVIL_BOLT_SRC_SIZE) / 2,
+			d.bolt_pos.y - f32(DEVIL_BOLT_SRC_SIZE) / 2,
+			f32(DEVIL_BOLT_SRC_SIZE),
+			f32(DEVIL_BOLT_SRC_SIZE),
+		}
+	}
+	// Melee: position bolt sprite in front of the devil, centered on its body
 	bolt_x: f32 = d.facing_left \
 		? d.pos.x - f32(DEVIL_DRAW_SIZE) / 2 - f32(DEVIL_BOLT_SRC_SIZE) \
 		: d.pos.x + f32(DEVIL_DRAW_SIZE) / 2
@@ -884,6 +987,15 @@ devil_advance_bolt :: proc(d: ^Devil, total_frames: int, dt: f32) {
 			d.bolt_frame = 0
 		}
 	}
+}
+
+@(private = "file")
+devil_start_impact :: proc(d: ^Devil) {
+	d.bolt_active = false
+	d.impact_active = true
+	d.impact_pos = d.is_ranged ? d.bolt_pos : raylib.Vector2{d.pos.x, d.pos.y - f32(DEVIL_DRAW_SIZE) / 2}
+	d.impact_frame = 0
+	d.impact_anim_timer = 0
 }
 
 FW_State :: enum {

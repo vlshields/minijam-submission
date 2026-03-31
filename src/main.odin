@@ -70,6 +70,10 @@ Game_State :: struct {
 	pause_show_controls: bool,
 	pause_show_audio:    bool,
 
+	// Controls remapping
+	controls_selection: int,
+	controls_listening: bool,
+
 	// Main menu
 	menu_selection:  int,
 	menu_timer:      f32,
@@ -142,13 +146,13 @@ load_map_data :: proc(path: string) -> bool {
 		gs.tile_textures[sym] = textures
 	}
 
-	// Assign random tile variants for 'w' cells
-	if w_texs, ok := gs.tile_textures['w']; ok {
-		num_variants := len(w_texs)
+	// Assign random tile variants for cells with multiple textures
+	for sym, texs in gs.tile_textures {
+		num_variants := len(texs)
 		if num_variants > 1 {
 			for &row in gs.map_data.grid {
 				for &cell in row {
-					if cell.symbol == 'w' {
+					if cell.symbol == sym {
 						cell.tile_index = rand.int_max(num_variants)
 					}
 				}
@@ -346,6 +350,7 @@ start_round :: proc() {
 init :: proc() {
 	raylib.InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Primal")
 	raylib.InitAudioDevice()
+	raylib.SetRandomSeed(u32(raylib.GetTime() * 1000000) + 1)
 
 	when ODIN_ARCH != .wasm32 && ODIN_ARCH != .wasm64p32 {
 		monitor := raylib.GetCurrentMonitor()
@@ -1012,10 +1017,7 @@ PAUSE_ITEMS :: [4]cstring{"CONTINUE", "AUDIO", "CONTROLS", "QUIT"}
 @(private = "file")
 update_paused :: proc(dt: f32) {
 	if gs.pause_show_controls {
-		if input_back() || input_confirm() {
-			raylib.PlaySound(gs.sfx_back)
-			gs.pause_show_controls = false
-		}
+		update_controls_screen()
 		return
 	}
 
@@ -1110,6 +1112,59 @@ draw_paused :: proc() {
 }
 
 @(private = "file")
+update_controls_screen :: proc() {
+	if gs.controls_listening {
+		// ESC cancels
+		if raylib.IsKeyPressed(.ESCAPE) {
+			gs.controls_listening = false
+			raylib.PlaySound(gs.sfx_back)
+			return
+		}
+		// Scan remappable buttons
+		if gamepad_active() {
+			for btn in REMAPPABLE_BUTTONS {
+				if raylib.IsGamepadButtonPressed(GAMEPAD_ID, btn) {
+					apply_gamepad_binding(gs.controls_selection, btn)
+					gs.controls_listening = false
+					raylib.PlaySound(gs.sfx_confirm)
+					return
+				}
+			}
+		}
+		return
+	}
+
+	// No gamepad: read-only, just exit
+	if !gamepad_active() {
+		if input_back() || input_confirm() {
+			raylib.PlaySound(gs.sfx_back)
+			gs.pause_show_controls = false
+			gs.controls_selection = 0
+		}
+		return
+	}
+
+	if input_back() {
+		raylib.PlaySound(gs.sfx_back)
+		gs.pause_show_controls = false
+		gs.controls_selection = 0
+		return
+	}
+
+	if input_menu_up() {
+		gs.controls_selection = (gs.controls_selection - 1) %% REMAPPABLE_ACTION_COUNT
+	}
+	if input_menu_down() {
+		gs.controls_selection = (gs.controls_selection + 1) %% REMAPPABLE_ACTION_COUNT
+	}
+
+	if input_confirm() {
+		gs.controls_listening = true
+		raylib.PlaySound(gs.sfx_confirm)
+	}
+}
+
+@(private = "file")
 draw_controls_screen :: proc() {
 	title: cstring = "CONTROLS"
 	title_size :: i32(16)
@@ -1119,49 +1174,67 @@ draw_controls_screen :: proc() {
 	label_size :: i32(10)
 	col_label_x :: i32(140)
 	col_key_x   :: i32(360)
-	row_y       :: i32(90)
+	row_y       :: i32(80)
 	row_h       :: i32(18)
 
 	gp := gamepad_active()
 
-	controls_kb := [?][2]cstring{
-		{"Move",                    "A / D  or  LEFT / RIGHT"},
-		{"Jump",                    "W  or  UP"},
-		{"Dash",                    "SPACE"},
-		{"Quick Attack",            "J  or  LEFT CLICK"},
-		{"Secondary Scythe Attack", "K  or  RIGHT CLICK"},
-		{"Summon Blood Scythe",     "R"},
-		{"Summon Blood Fangs",      "F"},
-		{"Pause",                   "ESC"},
-	}
-
-	controls_gp := [?][2]cstring{
-		{"Move",                    "Left Stick"},
-		{"Jump",                    "A"},
-		{"Dash",                    "B"},
-		{"Quick Attack",            "X"},
-		{"Secondary Scythe Attack", "Y"},
-		{"Summon Companion",        "LT (select w/ RB)"},
-		{"Pause",                   "START"},
-	}
-
-	if gp {
-		for entry, i in controls_gp {
-			y := row_y + i32(i) * row_h
-			raylib.DrawText(entry[0], col_label_x, y, label_size, raylib.Color{200, 200, 200, 255})
-			raylib.DrawText(entry[1], col_key_x, y, label_size, raylib.WHITE)
+	if !gp {
+		// Keyboard display — read-only
+		controls_kb := [?][2]cstring{
+			{"Move",                    "A / D  or  LEFT / RIGHT"},
+			{"Jump",                    "W  or  UP"},
+			{"Dash",                    "SPACE"},
+			{"Quick Attack",            "J  or  LEFT CLICK"},
+			{"Secondary Scythe Attack", "K  or  RIGHT CLICK"},
+			{"Summon Blood Scythe",     "R"},
+			{"Summon Blood Fangs",      "F"},
+			{"Pause",                   "ESC"},
 		}
-	} else {
 		for entry, i in controls_kb {
 			y := row_y + i32(i) * row_h
 			raylib.DrawText(entry[0], col_label_x, y, label_size, raylib.Color{200, 200, 200, 255})
 			raylib.DrawText(entry[1], col_key_x, y, label_size, raylib.WHITE)
 		}
+		back: cstring = "Press ESC or ENTER to go back"
+		back_w := raylib.MeasureText(back, label_size)
+		raylib.DrawText(back, (SCREEN_WIDTH - back_w) / 2, 250, label_size, raylib.Color{150, 150, 150, 255})
+		return
 	}
 
-	back: cstring = gp ? "Press B to go back" : "Press ESC or ENTER to go back"
-	back_w := raylib.MeasureText(back, label_size)
-	raylib.DrawText(back, (SCREEN_WIDTH - back_w) / 2, 250, label_size, raylib.Color{150, 150, 150, 255})
+	// Gamepad display — interactive remapping
+	// Static row: Move
+	raylib.DrawText("Move", col_label_x, row_y, label_size, raylib.Color{200, 200, 200, 255})
+	raylib.DrawText("Left Stick", col_key_x, row_y, label_size, raylib.WHITE)
+
+	// Remappable rows
+	remap_start_y := row_y + row_h
+	for i in 0 ..< REMAPPABLE_ACTION_COUNT {
+		y := remap_start_y + i32(i) * row_h
+		selected := i == gs.controls_selection
+
+		label_color: raylib.Color = selected ? raylib.WHITE : raylib.Color{200, 200, 200, 255}
+		raylib.DrawText(REMAPPABLE_ACTION_NAMES[i], col_label_x, y, label_size, label_color)
+
+		// Button value
+		btn_label: cstring = selected && gs.controls_listening ? "-" : gamepad_button_name(get_gamepad_binding(i))
+		raylib.DrawText(btn_label, col_key_x, y, label_size, label_color)
+
+		// Selection arrow
+		if selected {
+			raylib.DrawText(">", col_label_x - 12, y, label_size, raylib.WHITE)
+		}
+	}
+
+	// Static row: Pause
+	pause_y := remap_start_y + i32(REMAPPABLE_ACTION_COUNT) * row_h
+	raylib.DrawText("Pause", col_label_x, pause_y, label_size, raylib.Color{200, 200, 200, 255})
+	raylib.DrawText("START", col_key_x, pause_y, label_size, raylib.WHITE)
+
+	// Hint text
+	hint: cstring = gs.controls_listening ? "Press a button to assign, or ESC to cancel" : "Press A to remap, B to go back"
+	hint_w := raylib.MeasureText(hint, 8)
+	raylib.DrawText(hint, (SCREEN_WIDTH - hint_w) / 2, 260, 8, raylib.Color{150, 150, 150, 255})
 }
 
 // ---------------------------------------------------------------------------
