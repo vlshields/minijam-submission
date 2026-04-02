@@ -11,6 +11,7 @@ Game_Phase :: enum {
 	Main_Menu,
 	Cutscene,
 	Pre_Round,
+	Boss_Intro,
 	Playing,
 	Paused,
 	Round_Won,
@@ -60,6 +61,12 @@ Game_State :: struct {
 	sfx_despawn:           raylib.Sound,
 	sfx_scythe_attack:     raylib.Sound,
 	sfx_scythe_qa_fang:    raylib.Sound,
+	sfx_boss_laugh:        raylib.Sound,
+	sfx_boss_breath:       raylib.Sound,
+	sfx_boss_meteor:       raylib.Sound,
+	sfx_flameball_agroed:  raylib.Sound,
+	sfx_fw_attack:         raylib.Sound,
+	sfx_devil_attack:      raylib.Sound,
 	music_theme:      raylib.Music,
 	music_cutscene:   raylib.Music,
 	sfx_volume:       f32,
@@ -93,6 +100,9 @@ Game_State :: struct {
 
 	// Combat screenshake
 	screen_shake: f32,
+
+	// Boss intro
+	boss_intro_timer: f32,
 }
 
 @(private = "file")
@@ -346,8 +356,15 @@ start_round :: proc() {
 	durations := ROUND_DURATIONS
 	gs.round_timer = durations[gs.current_round]
 	gs.bp_drain_timer = BP_DRAIN_INTERVAL
-	gs.phase = .Playing
 	gs.phase_timer = 0
+
+	if gs.ember_demon.active {
+		gs.phase = .Boss_Intro
+		gs.boss_intro_timer = BOSS_INTRO_DURATION
+		raylib.PlaySound(gs.sfx_boss_laugh)
+	} else {
+		gs.phase = .Playing
+	}
 
 	// Switch from menu/cutscene music to gameplay theme
 	if raylib.IsMusicStreamPlaying(gs.music_cutscene) {
@@ -397,6 +414,12 @@ init :: proc() {
 	gs.sfx_despawn = raylib.LoadSound("assets/audio/sfx/scythe_or_fangs_despawn.wav")
 	gs.sfx_scythe_attack = raylib.LoadSound("assets/audio/sfx/scythe_attack1.wav")
 	gs.sfx_scythe_qa_fang = raylib.LoadSound("assets/audio/sfx/sythe_attack_two_and_fang_attack.wav")
+	gs.sfx_boss_laugh = raylib.LoadSound("assets/audio/sfx/boss_laughter.wav")
+	gs.sfx_boss_breath = raylib.LoadSound("assets/audio/sfx/boss_emberbreath.wav")
+	gs.sfx_boss_meteor = raylib.LoadSound("assets/audio/sfx/boss_meteor_impact.wav")
+	gs.sfx_flameball_agroed = raylib.LoadSound("assets/audio/sfx/enemy_flameball_agroed.wav")
+	gs.sfx_fw_attack = raylib.LoadSound("assets/audio/sfx/enemy_flamwarden attacks.wav")
+	gs.sfx_devil_attack = raylib.LoadSound("assets/audio/sfx/enemy_devil_attacks.wav")
 	gs.music_theme = raylib.LoadMusicStream("assets/audio/soundtrack/theme.ogg")
 	gs.music_cutscene = raylib.LoadMusicStream("assets/audio/soundtrack/cutscene_w_belial.ogg")
 	gs.sfx_volume = 0.3
@@ -412,6 +435,12 @@ init :: proc() {
 	raylib.SetSoundVolume(gs.sfx_despawn, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_scythe_attack, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_scythe_qa_fang, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_boss_laugh, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_boss_breath, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_boss_meteor, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_flameball_agroed, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_fw_attack, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_devil_attack, gs.sfx_volume)
 	raylib.SetMusicVolume(gs.music_theme, gs.music_volume)
 	raylib.SetMusicVolume(gs.music_cutscene, gs.music_volume)
 	gs.music_theme.looping = true
@@ -486,6 +515,8 @@ update :: proc() {
 		update_cutscene(dt)
 	case .Pre_Round:
 		update_pre_round(dt)
+	case .Boss_Intro:
+		update_boss_intro(dt)
 	case .Playing:
 		update_playing(dt)
 	case .Paused:
@@ -509,6 +540,8 @@ update :: proc() {
 		draw_cutscene()
 	case .Pre_Round:
 		draw_pre_round()
+	case .Boss_Intro:
+		draw_boss_intro()
 	case .Playing:
 		draw_playing()
 	case .Paused:
@@ -553,6 +586,12 @@ shutdown :: proc() {
 	raylib.UnloadSound(gs.sfx_despawn)
 	raylib.UnloadSound(gs.sfx_scythe_attack)
 	raylib.UnloadSound(gs.sfx_scythe_qa_fang)
+	raylib.UnloadSound(gs.sfx_boss_laugh)
+	raylib.UnloadSound(gs.sfx_boss_breath)
+	raylib.UnloadSound(gs.sfx_boss_meteor)
+	raylib.UnloadSound(gs.sfx_flameball_agroed)
+	raylib.UnloadSound(gs.sfx_fw_attack)
+	raylib.UnloadSound(gs.sfx_devil_attack)
 	raylib.UnloadMusicStream(gs.music_theme)
 	raylib.UnloadMusicStream(gs.music_cutscene)
 	raylib.CloseAudioDevice()
@@ -934,6 +973,38 @@ draw_pre_round :: proc() {
 	raylib.DrawText(prompt, (SCREEN_WIDTH - prompt_w) / 2, SCREEN_HEIGHT - 40, 8, raylib.Color{150, 150, 150, 255})
 }
 
+// Phase: Boss Intro
+// ---------------------------------------------------------------------------
+
+BOSS_INTRO_DURATION :: 2.0
+
+@(private = "file")
+update_boss_intro :: proc(dt: f32) {
+	gs.boss_intro_timer -= dt
+	if gs.boss_intro_timer <= 0 {
+		gs.phase = .Playing
+	}
+}
+
+@(private = "file")
+draw_boss_intro :: proc() {
+	draw_parallax_bg()
+	raylib.BeginMode2D(gs.camera)
+	draw_map()
+	draw_ember_demon(&gs.ember_demon, gs.white_flash_shader)
+	draw_player(&gs.player, gs.white_flash_shader)
+	draw_companion(&gs.companion, &gs.player)
+	draw_blood_scythe(&gs.blood_scythe, &gs.player)
+	raylib.EndMode2D()
+
+	draw_player_hud(&gs.player)
+
+	// Boss HP bar slides up from below the screen
+	progress := 1.0 - (gs.boss_intro_timer / BOSS_INTRO_DURATION)
+	bar_alpha := u8(clamp(progress * 2.0, 0.0, 1.0) * 255.0) // fade in over first half
+	draw_boss_hp_bar_intro(&gs.ember_demon, bar_alpha)
+}
+
 // Phase: Playing
 // ---------------------------------------------------------------------------
 
@@ -1048,10 +1119,10 @@ update_playing :: proc(dt: f32) {
 		raylib.PlaySound(gs.sfx_despawn)
 	}
 
-	update_enemies(&gs.enemies, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, dt)
-	update_flamewardens(&gs.flamewardens, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, dt)
-	update_devils(&gs.devils, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, dt)
-	update_ember_demon(&gs.ember_demon, &gs.player, &gs.companion, &gs.blood_scythe, &gs.map_data, &gs.blood_points, gs.sfx_hit, dt)
+	update_enemies(&gs.enemies, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, gs.sfx_flameball_agroed, dt)
+	update_flamewardens(&gs.flamewardens, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, gs.sfx_fw_attack, dt)
+	update_devils(&gs.devils, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, gs.sfx_devil_attack, dt)
+	update_ember_demon(&gs.ember_demon, &gs.player, &gs.companion, &gs.blood_scythe, &gs.map_data, &gs.blood_points, gs.sfx_hit, gs.sfx_boss_breath, gs.sfx_boss_meteor, dt)
 
 	// Boss defeated — game won
 	if gs.ember_demon.active && gs.ember_demon.state == .Dead {
@@ -1467,6 +1538,12 @@ apply_volumes :: proc() {
 	raylib.SetSoundVolume(gs.sfx_despawn, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_scythe_attack, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_scythe_qa_fang, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_boss_laugh, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_boss_breath, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_boss_meteor, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_flameball_agroed, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_fw_attack, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_devil_attack, gs.sfx_volume)
 	raylib.SetMusicVolume(gs.music_theme, gs.music_volume)
 	raylib.SetMusicVolume(gs.music_cutscene, gs.music_volume)
 }

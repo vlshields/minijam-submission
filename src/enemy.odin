@@ -9,6 +9,7 @@ import dm "../dotmap"
 
 Enemy_State :: enum {
 	Idle,
+	Agroed,
 	Attacking,
 	Cooldown,
 	Dying,
@@ -32,14 +33,16 @@ Enemy :: struct {
 }
 
 Enemy_Pool :: struct {
-	enemies:      [MAX_ENEMIES]Enemy,
-	count:        int,
-	idle_tex:     raylib.Texture2D,
-	move_tex:     raylib.Texture2D,
-	death_tex:    raylib.Texture2D,
-	idle_frames:  int,
-	move_frames:  int,
-	death_frames: int,
+	enemies:       [MAX_ENEMIES]Enemy,
+	count:         int,
+	idle_tex:      raylib.Texture2D,
+	move_tex:      raylib.Texture2D,
+	agroed_tex:    raylib.Texture2D,
+	death_tex:     raylib.Texture2D,
+	idle_frames:   int,
+	move_frames:   int,
+	agroed_frames: int,
+	death_frames:  int,
 }
 
 // ---------------------------------------------------------------------------
@@ -49,9 +52,11 @@ Enemy_Pool :: struct {
 init_enemies :: proc(pool: ^Enemy_Pool) {
 	pool.idle_tex = raylib.LoadTexture("assets/sprites/enemy_flameball_idle.png")
 	pool.move_tex = raylib.LoadTexture("assets/sprites/enemy_flameball_move.png")
+	pool.agroed_tex = raylib.LoadTexture("assets/sprites/enemy_flameball_agroed.png")
 	pool.death_tex = raylib.LoadTexture("assets/sprites/enemy_flameball_death.png")
 	pool.idle_frames = int(pool.idle_tex.width) / ENEMY_SRC_SIZE
 	pool.move_frames = int(pool.move_tex.width) / ENEMY_SRC_SIZE
+	pool.agroed_frames = int(pool.agroed_tex.width) / ENEMY_SRC_SIZE
 	pool.death_frames = int(pool.death_tex.width) / ENEMY_SRC_SIZE
 	pool.count = 0
 }
@@ -77,6 +82,7 @@ spawn_enemy :: proc(pool: ^Enemy_Pool, pos: raylib.Vector2) {
 unload_enemies :: proc(pool: ^Enemy_Pool) {
 	raylib.UnloadTexture(pool.idle_tex)
 	raylib.UnloadTexture(pool.move_tex)
+	raylib.UnloadTexture(pool.agroed_tex)
 	raylib.UnloadTexture(pool.death_tex)
 }
 
@@ -91,6 +97,7 @@ update_enemies :: proc(
 	bp: ^i32,
 	scale: f32,
 	sfx_hit: raylib.Sound,
+	sfx_agroed: raylib.Sound,
 	dt: f32,
 ) {
 	// Compute viewport rect for aggro check
@@ -130,10 +137,11 @@ update_enemies :: proc(
 			same_level := e.on_ground && player.on_ground && abs(player.pos.y - e.pos.y) < 2
 			if in_view && same_level {
 				e.aggroed = true
-				e.state = .Attacking
+				e.state = .Agroed
 				e.facing_left = player.pos.x < e.pos.x
 				e.current_frame = 0
 				e.anim_timer = 0
+				raylib.PlaySound(sfx_agroed)
 			}
 		}
 
@@ -147,6 +155,20 @@ update_enemies :: proc(
 				e.vel.y = MAX_FALL_SPEED
 			}
 			move_and_collide_enemy(e, map_data, dt)
+
+		case .Agroed:
+			// Play agroed animation then transition to attacking
+			e.vel.x = 0
+			e.vel.y += GRAVITY * dt
+			if e.vel.y > MAX_FALL_SPEED {
+				e.vel.y = MAX_FALL_SPEED
+			}
+			move_and_collide_enemy(e, map_data, dt)
+			if advance_enemy_oneshot(e, pool.agroed_frames, dt) {
+				e.state = .Attacking
+				e.current_frame = 0
+				e.anim_timer = 0
+			}
 
 		case .Attacking:
 			// Face and roll toward player
@@ -288,6 +310,9 @@ draw_enemies :: proc(pool: ^Enemy_Pool, white_shader: raylib.Shader) {
 		tex: raylib.Texture2D
 		max_frames: int
 		switch e.state {
+		case .Agroed:
+			tex = pool.agroed_tex
+			max_frames = pool.agroed_frames
 		case .Attacking:
 			tex = pool.move_tex
 			max_frames = pool.move_frames
@@ -523,6 +548,7 @@ update_devils :: proc(
 	bp: ^i32,
 	scale: f32,
 	sfx_hit: raylib.Sound,
+	sfx_attack: raylib.Sound,
 	dt: f32,
 ) {
 	half_w := f32(SCREEN_WIDTH) / (2 * camera.zoom)
@@ -585,6 +611,7 @@ update_devils :: proc(
 				d.anim_timer = 0
 				d.vel.x = 0
 				d.bolt_active = true
+				raylib.PlaySound(sfx_attack)
 				d.bolt_frame = 0
 				d.bolt_anim_timer = 0
 				d.bolt_dealt_damage = false
@@ -1121,6 +1148,7 @@ update_flamewardens :: proc(
 	bp: ^i32,
 	scale: f32,
 	sfx_hit: raylib.Sound,
+	sfx_attack: raylib.Sound,
 	dt: f32,
 ) {
 	half_w := f32(SCREEN_WIDTH) / (2 * camera.zoom)
@@ -1160,6 +1188,7 @@ update_flamewardens :: proc(
 				fw.state = .Patrol
 				fw.current_frame = 0
 				fw.anim_timer = 0
+				raylib.PlaySound(sfx_attack)
 			}
 		}
 

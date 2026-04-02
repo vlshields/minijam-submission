@@ -217,6 +217,8 @@ update_ember_demon :: proc(
 	map_data: ^dm.Dot_Map,
 	bp: ^i32,
 	sfx_hit: raylib.Sound,
+	sfx_breath: raylib.Sound,
+	sfx_meteor: raylib.Sound,
 	dt: f32,
 ) {
 	if !ed.active || ed.state == .Dead {
@@ -231,7 +233,7 @@ update_ember_demon :: proc(
 		if ed_advance_oneshot(ed, ed.move_frames, dt) {
 			ed.state = .Dead
 		}
-		ed_update_meteors(ed, player, sfx_hit, dt)
+		ed_update_meteors(ed, player, sfx_hit, sfx_meteor, dt)
 		ed_update_magma(ed, player, sfx_hit, dt)
 		return
 	}
@@ -282,6 +284,7 @@ update_ember_demon :: proc(
 			ed.breath_anim_timer = 0
 			ed.breath_state_timer = 0
 			ed.breath_dealt_damage = false
+			raylib.PlaySound(sfx_breath)
 		} else {
 			ed.vel.x = ed.facing_left ? -ED_SPEED : ED_SPEED
 			ed_animate_loop(ed, ed.move_frames, dt)
@@ -337,7 +340,7 @@ update_ember_demon :: proc(
 		}
 	}
 
-	ed_update_meteors(ed, player, sfx_hit, dt)
+	ed_update_meteors(ed, player, sfx_hit, sfx_meteor, dt)
 	ed_update_magma(ed, player, sfx_hit, dt)
 
 	// --- Combat: player weapons hitting boss ---
@@ -480,7 +483,7 @@ ed_spawn_meteor :: proc(ed: ^Ember_Demon, player: ^Player, map_data: ^dm.Dot_Map
 }
 
 @(private = "file")
-ed_update_meteors :: proc(ed: ^Ember_Demon, player: ^Player, sfx_hit: raylib.Sound, dt: f32) {
+ed_update_meteors :: proc(ed: ^Ember_Demon, player: ^Player, sfx_hit: raylib.Sound, sfx_meteor: raylib.Sound, dt: f32) {
 	frame_dur: f32 = 1.0 / ED_ANIM_FPS
 
 	for &m in ed.meteors {
@@ -504,6 +507,7 @@ ed_update_meteors :: proc(ed: ^Ember_Demon, player: ^Player, sfx_hit: raylib.Sou
 				m.phase = .Impact
 				m.frame = 0
 				m.anim_timer = 0
+				raylib.PlaySound(sfx_meteor)
 			}
 		case .Impact:
 			m.anim_timer += dt
@@ -933,6 +937,40 @@ draw_boss_hp_bar :: proc(ed: ^Ember_Demon) {
 		fill_color = {0xFF, 0x88, 0x00, 0xFF}
 	case .Phase3:
 		fill_color = {0xFF, 0x00, 0x00, 0xFF}
+	}
+
+	raylib.DrawRectangle(BAR_X, BAR_Y, fill_w, BAR_H, fill_color)
+}
+
+draw_boss_hp_bar_intro :: proc(ed: ^Ember_Demon, alpha: u8) {
+	if !ed.active || alpha == 0 {
+		return
+	}
+
+	BAR_W :: 200
+	BAR_H :: 8
+	BAR_X :: (SCREEN_WIDTH - BAR_W) / 2
+	BAR_Y :: SCREEN_HEIGHT - 30
+
+	name: cstring = "Ember Demon"
+	name_w := raylib.MeasureText(name, 8)
+	raylib.DrawText(name, (SCREEN_WIDTH - name_w) / 2, BAR_Y - 12, 8, raylib.Color{0xFF, 0x88, 0x33, alpha})
+
+	raylib.DrawRectangle(BAR_X - 1, BAR_Y - 1, BAR_W + 2, BAR_H + 2, raylib.Color{0, 0, 0, alpha})
+
+	fill_w := i32(f32(BAR_W) * (ed.hp / ED_HP))
+	if fill_w < 0 {
+		fill_w = 0
+	}
+
+	fill_color: raylib.Color
+	switch ed.phase {
+	case .Phase1:
+		fill_color = {0xFF, 0x44, 0x11, alpha}
+	case .Phase2:
+		fill_color = {0xFF, 0x88, 0x00, alpha}
+	case .Phase3:
+		fill_color = {0xFF, 0x00, 0x00, alpha}
 	}
 
 	raylib.DrawRectangle(BAR_X, BAR_Y, fill_w, BAR_H, fill_color)
