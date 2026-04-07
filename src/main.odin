@@ -69,6 +69,7 @@ Game_State :: struct {
 	sfx_devil_attack:      raylib.Sound,
 	music_theme:      raylib.Music,
 	music_cutscene:   raylib.Music,
+	music_boss:       raylib.Music,
 	sfx_volume:       f32,
 	music_volume:     f32,
 	footstep_timer:   f32,
@@ -103,6 +104,8 @@ Game_State :: struct {
 
 	// Boss intro
 	boss_intro_timer: f32,
+
+
 }
 
 @(private = "file")
@@ -230,8 +233,10 @@ start_round :: proc() {
 	gs.player.current_frame = 0
 	gs.player.anim_timer = 0
 	gs.player.dashing = false
+	gs.player.down_dashing = false
 	gs.player.dash_timer = 0
 	gs.player.dash_cooldown = 0
+	gs.player.dash_impact_active = false
 	gs.player.damage_flash_timer = 0
 	gs.player.quick_attack_state = .None
 
@@ -366,12 +371,25 @@ start_round :: proc() {
 		gs.phase = .Playing
 	}
 
-	// Switch from menu/cutscene music to gameplay theme
+	// Switch music for the new round
 	if raylib.IsMusicStreamPlaying(gs.music_cutscene) {
 		raylib.StopMusicStream(gs.music_cutscene)
 	}
-	if !raylib.IsMusicStreamPlaying(gs.music_theme) {
-		raylib.PlayMusicStream(gs.music_theme)
+	if gs.ember_demon.active {
+		// Boss round: switch to boss music
+		if raylib.IsMusicStreamPlaying(gs.music_theme) {
+			raylib.StopMusicStream(gs.music_theme)
+		}
+		if !raylib.IsMusicStreamPlaying(gs.music_boss) {
+			raylib.PlayMusicStream(gs.music_boss)
+		}
+	} else {
+		if raylib.IsMusicStreamPlaying(gs.music_boss) {
+			raylib.StopMusicStream(gs.music_boss)
+		}
+		if !raylib.IsMusicStreamPlaying(gs.music_theme) {
+			raylib.PlayMusicStream(gs.music_theme)
+		}
 	}
 
 	gs.camera.target = gs.player.pos
@@ -422,6 +440,7 @@ init :: proc() {
 	gs.sfx_devil_attack = raylib.LoadSound("assets/audio/sfx/enemy_devil_attacks.wav")
 	gs.music_theme = raylib.LoadMusicStream("assets/audio/soundtrack/theme.ogg")
 	gs.music_cutscene = raylib.LoadMusicStream("assets/audio/soundtrack/cutscene_w_belial.ogg")
+	gs.music_boss = raylib.LoadMusicStream("assets/audio/soundtrack/boss_fight_theme.ogg")
 	gs.sfx_volume = 0.3
 	gs.music_volume = 0.5
 	raylib.SetSoundVolume(gs.sfx_jump, gs.sfx_volume)
@@ -443,8 +462,10 @@ init :: proc() {
 	raylib.SetSoundVolume(gs.sfx_devil_attack, gs.sfx_volume)
 	raylib.SetMusicVolume(gs.music_theme, gs.music_volume)
 	raylib.SetMusicVolume(gs.music_cutscene, gs.music_volume)
+	raylib.SetMusicVolume(gs.music_boss, gs.music_volume)
 	gs.music_theme.looping = true
 	gs.music_cutscene.looping = true
+	gs.music_boss.looping = true
 	raylib.PlayMusicStream(gs.music_cutscene)
 
 	// Init entity textures (loaded once, reused across rounds)
@@ -455,6 +476,7 @@ init :: proc() {
 	init_flamewardens(&gs.flamewardens)
 	init_devils(&gs.devils)
 	init_ember_demon(&gs.ember_demon)
+
 
 	// Camera
 	gs.camera = raylib.Camera2D{
@@ -507,6 +529,7 @@ update :: proc() {
 
 	raylib.UpdateMusicStream(gs.music_theme)
 	raylib.UpdateMusicStream(gs.music_cutscene)
+	raylib.UpdateMusicStream(gs.music_boss)
 
 	switch gs.phase {
 	case .Main_Menu:
@@ -594,6 +617,7 @@ shutdown :: proc() {
 	raylib.UnloadSound(gs.sfx_devil_attack)
 	raylib.UnloadMusicStream(gs.music_theme)
 	raylib.UnloadMusicStream(gs.music_cutscene)
+	raylib.UnloadMusicStream(gs.music_boss)
 	raylib.CloseAudioDevice()
 	raylib.UnloadShader(gs.white_flash_shader)
 	raylib.UnloadTexture(gs.parallax_tex)
@@ -606,6 +630,7 @@ shutdown :: proc() {
 	unload_flamewardens(&gs.flamewardens)
 	unload_devils(&gs.devils)
 	unload_ember_demon(&gs.ember_demon)
+
 	raylib.CloseWindow()
 }
 
@@ -1031,9 +1056,13 @@ update_playing :: proc(dt: f32) {
 		gs.bp_drain_timer += BP_DRAIN_INTERVAL
 	}
 
+
 	if gs.blood_points <= 0 || gs.player.hp <= 0 {
 		gs.blood_points = max(gs.blood_points, 0)
 		gs.player.hp = max(gs.player.hp, 0)
+		raylib.StopMusicStream(gs.music_boss)
+		raylib.StopMusicStream(gs.music_theme)
+		raylib.StopSound(gs.sfx_footsteps)
 		gs.phase = .Game_Over
 		return
 	}
@@ -1045,6 +1074,7 @@ update_playing :: proc(dt: f32) {
 			gs.round_timer = 0
 			gs.phase = .Round_Won
 			gs.phase_timer = 2.0
+			raylib.StopSound(gs.sfx_footsteps)
 			return
 		}
 	}
@@ -1124,8 +1154,15 @@ update_playing :: proc(dt: f32) {
 	update_devils(&gs.devils, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, gs.sfx_devil_attack, dt)
 	update_ember_demon(&gs.ember_demon, &gs.player, &gs.companion, &gs.blood_scythe, &gs.map_data, &gs.blood_points, gs.sfx_hit, gs.sfx_boss_breath, gs.sfx_boss_meteor, dt)
 
+	// Mark dash impact damage as dealt after all enemies processed
+	if gs.player.dash_impact_active && !gs.player.dash_impact_damage_dealt {
+		gs.player.dash_impact_damage_dealt = true
+	}
+
 	// Boss defeated — game won
 	if gs.ember_demon.active && gs.ember_demon.state == .Dead {
+		raylib.StopMusicStream(gs.music_boss)
+		raylib.StopSound(gs.sfx_footsteps)
 		gs.phase = .Game_Won
 		gs.phase_timer = 3.0
 		return
@@ -1176,7 +1213,9 @@ draw_playing :: proc() {
 	draw_player(&gs.player, gs.white_flash_shader)
 	draw_companion(&gs.companion, &gs.player)
 	draw_blood_scythe(&gs.blood_scythe, &gs.player)
+
 	raylib.EndMode2D()
+
 
 	draw_player_hud(&gs.player)
 	draw_bp_hud(gs.blood_points, gs.round_timer, gs.current_round)
@@ -1235,6 +1274,7 @@ update_paused :: proc(dt: f32) {
 			gs.menu_fall_frame = 0
 			gs.menu_fall_timer = 0
 			raylib.StopMusicStream(gs.music_theme)
+			raylib.StopMusicStream(gs.music_boss)
 			raylib.PlayMusicStream(gs.music_cutscene)
 		}
 	}
@@ -1466,6 +1506,8 @@ update_game_won :: proc(dt: f32) {
 		unload_map_data()
 		gs.current_round = 0
 		gs.phase = .Main_Menu
+		raylib.StopMusicStream(gs.music_boss)
+		raylib.PlayMusicStream(gs.music_cutscene)
 	}
 }
 
@@ -1546,6 +1588,7 @@ apply_volumes :: proc() {
 	raylib.SetSoundVolume(gs.sfx_devil_attack, gs.sfx_volume)
 	raylib.SetMusicVolume(gs.music_theme, gs.music_volume)
 	raylib.SetMusicVolume(gs.music_cutscene, gs.music_volume)
+	raylib.SetMusicVolume(gs.music_boss, gs.music_volume)
 }
 
 @(private = "file")

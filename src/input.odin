@@ -155,6 +155,16 @@ input_jump :: proc() -> bool {
 	return false
 }
 
+input_move_down :: proc() -> bool {
+	if raylib.IsKeyDown(.S) || raylib.IsKeyDown(.DOWN) {
+		return true
+	}
+	if gamepad_active() && raylib.GetGamepadAxisMovement(GAMEPAD_ID, .LEFT_Y) > STICK_DEADZONE {
+		return true
+	}
+	return false
+}
+
 input_dash :: proc() -> bool {
 	if raylib.IsKeyPressed(.SPACE) {
 		return true

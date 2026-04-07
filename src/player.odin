@@ -35,10 +35,19 @@ Player :: struct {
 	current_frame:  f32,
 	anim_timer:     f32,
 	dashing:        bool,
+	down_dashing:   bool,
 	dash_timer:     f32,
 	dash_cooldown:  f32,
 	dash_dir:       f32,
 	particles:      [MAX_DASH_PARTICLES]Dash_Particle,
+	// Downward dash ground impact
+	dash_impact_tex:          raylib.Texture2D,
+	dash_impact_frames:       int,
+	dash_impact_active:       bool,
+	dash_impact_pos:          raylib.Vector2, // bottom-center of impact
+	dash_impact_frame:        f32,
+	dash_impact_anim_timer:   f32,
+	dash_impact_damage_dealt: bool,
 	// Quick attack
 	quick_attack_state:         Quick_Attack_State,
 	quick_attack_frame:         f32,
@@ -62,6 +71,7 @@ init_player :: proc(p: ^Player, spawn: raylib.Vector2) {
 	p.current_frame = 0
 	p.anim_timer = 0
 	p.dashing = false
+	p.down_dashing = false
 	p.dash_timer = 0
 	p.dash_cooldown = 0
 	p.dash_dir = 1
@@ -73,6 +83,8 @@ init_player :: proc(p: ^Player, spawn: raylib.Vector2) {
 	p.fall_tex = raylib.LoadTexture("assets/sprites/player_falling.png")
 	p.attack1_tex = raylib.LoadTexture("assets/sprites/player_fast_attack1.png")
 	p.attack2_tex = raylib.LoadTexture("assets/sprites/player_fast_attack2.png")
+	p.dash_impact_tex = raylib.LoadTexture("assets/sprites/dash_ground_impact.png")
+	p.dash_impact_frames = int(p.dash_impact_tex.width) / DASH_IMPACT_SIZE
 	p.quick_attack_frames = int(p.attack1_tex.width) / QUICK_ATTACK_SRC_SIZE
 	p.frame_count = int(p.move_tex.width) / SPRITE_SRC_SIZE
 	p.idle_frames = int(p.idle_tex.width) / SPRITE_SRC_SIZE
@@ -89,6 +101,7 @@ unload_player :: proc(p: ^Player) {
 	raylib.UnloadTexture(p.fall_tex)
 	raylib.UnloadTexture(p.attack1_tex)
 	raylib.UnloadTexture(p.attack2_tex)
+	raylib.UnloadTexture(p.dash_impact_tex)
 }
 
 update_player :: proc(p: ^Player, map_data: ^dm.Dot_Map, dt: f32) {
@@ -105,31 +118,85 @@ update_player :: proc(p: ^Player, map_data: ^dm.Dot_Map, dt: f32) {
 	// Update particles
 	update_dash_particles(p, dt)
 
+	// Update dash impact animation
+	if p.dash_impact_active {
+		frame_dur: f32 = 1.0 / DASH_IMPACT_FPS
+		p.dash_impact_anim_timer += dt
+		if p.dash_impact_anim_timer >= frame_dur {
+			p.dash_impact_anim_timer -= frame_dur
+			p.dash_impact_frame += 1
+			if int(p.dash_impact_frame) >= p.dash_impact_frames {
+				p.dash_impact_active = false
+			}
+		}
+	}
+
 	// Start dash
 	if !p.dashing && p.dash_cooldown <= 0 && input_dash() {
-		p.dashing = true
-		p.dash_timer = DASH_DURATION
-		p.dash_dir = p.facing_left ? -1.0 : 1.0
-		p.current_frame = 0
-		p.anim_timer = 0
+		if !p.on_ground && input_move_down() {
+			// Downward dash
+			p.dashing = true
+			p.down_dashing = true
+			p.dash_timer = DASH_DURATION
+			p.dash_dir = p.facing_left ? -1.0 : 1.0
+			p.current_frame = 0
+			p.anim_timer = 0
+		} else {
+			// Horizontal dash
+			p.dashing = true
+			p.down_dashing = false
+			p.dash_timer = DASH_DURATION
+			p.dash_dir = p.facing_left ? -1.0 : 1.0
+			p.current_frame = 0
+			p.anim_timer = 0
+		}
 	}
 
 	if p.dashing {
-		// Dash physics — flat horizontal launch, no gravity
-		p.vel.x = DASH_SPEED * p.dash_dir
-		p.vel.y = 0
-		p.dash_timer -= dt
-
-		// Trail particles
-		spawn_dash_particles(p)
-
-		move_and_collide(p, map_data, dt)
-
-		// End dash on timer or wall hit
-		if p.dash_timer <= 0 || p.vel.x == 0 {
-			p.dashing = false
-			p.dash_cooldown = DASH_COOLDOWN
+		if p.down_dashing {
+			// Down-dash physics — vertical plunge, no horizontal movement
 			p.vel.x = 0
+			p.vel.y = DASH_DOWN_SPEED
+			p.dash_timer -= dt
+
+			spawn_dash_particles(p)
+			move_and_collide(p, map_data, dt)
+
+			// End on ground hit or timer
+			if p.on_ground {
+				// Trigger ground impact effect
+				p.dash_impact_active = true
+				p.dash_impact_pos = p.pos
+				p.dash_impact_frame = 0
+				p.dash_impact_anim_timer = 0
+				p.dash_impact_damage_dealt = false
+				p.dashing = false
+				p.down_dashing = false
+				p.dash_cooldown = DASH_COOLDOWN
+				p.vel.y = 0
+			} else if p.dash_timer <= 0 {
+				p.dashing = false
+				p.down_dashing = false
+				p.dash_cooldown = DASH_COOLDOWN
+				p.vel.y = 0
+			}
+		} else {
+			// Horizontal dash physics — flat launch, no gravity
+			p.vel.x = DASH_SPEED * p.dash_dir
+			p.vel.y = 0
+			p.dash_timer -= dt
+
+			// Trail particles
+			spawn_dash_particles(p)
+
+			move_and_collide(p, map_data, dt)
+
+			// End dash on timer or wall hit
+			if p.dash_timer <= 0 || p.vel.x == 0 {
+				p.dashing = false
+				p.dash_cooldown = DASH_COOLDOWN
+				p.vel.x = 0
+			}
 		}
 
 		// Roll animation — spread frames across dash duration
@@ -246,11 +313,12 @@ draw_player_hud :: proc(p: ^Player) {
 }
 
 draw_bp_hud :: proc(blood_points: i32, round_timer: f32, current_round: int) {
+	TEXT_X :: i32(8)
 	bp_text := fmt.ctprintf("BP: %d", blood_points)
 	bp_w := raylib.MeasureText(bp_text, 10)
 	PAD :: i32(3)
-	raylib.DrawRectangle(8 - PAD, 8 - PAD, bp_w + PAD * 2, 10 + PAD * 2, raylib.Color{0, 0, 0, 140})
-	raylib.DrawText(bp_text, 8, 8, 10, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
+	raylib.DrawRectangle(TEXT_X - PAD, 8 - PAD, bp_w + PAD * 2, 10 + PAD * 2, raylib.Color{0, 0, 0, 140})
+	raylib.DrawText(bp_text, TEXT_X, 8, 10, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
 
 	timer_int := int(round_timer) + 1
 	if round_timer <= 0 { timer_int = 0 }
@@ -317,6 +385,9 @@ draw_player :: proc(p: ^Player, white_shader: raylib.Shader) {
 		}
 		raylib.DrawTexturePro(qa_tex, qa_src, qa_dst, {0, 0}, 0, raylib.WHITE)
 	}
+
+	// Draw ground impact effect
+	draw_dash_impact(p)
 }
 
 // ---------------------------------------------------------------------------
@@ -372,6 +443,41 @@ draw_dash_particles :: proc(p: ^Player) {
 			raylib.DrawCircleV(part.pos, size, color)
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Downward dash ground impact
+// ---------------------------------------------------------------------------
+
+get_dash_impact_rect :: proc(p: ^Player) -> raylib.Rectangle {
+	return {
+		p.dash_impact_pos.x - f32(DASH_IMPACT_SIZE) / 2,
+		p.dash_impact_pos.y - f32(DASH_IMPACT_SIZE),
+		f32(DASH_IMPACT_SIZE),
+		f32(DASH_IMPACT_SIZE),
+	}
+}
+
+draw_dash_impact :: proc(p: ^Player) {
+	if !p.dash_impact_active {
+		return
+	}
+	frame := int(p.dash_impact_frame)
+	if frame >= p.dash_impact_frames {
+		frame = p.dash_impact_frames - 1
+	}
+	src := raylib.Rectangle{
+		f32(frame * DASH_IMPACT_SIZE), 0,
+		f32(DASH_IMPACT_SIZE),
+		f32(DASH_IMPACT_SIZE),
+	}
+	dst := raylib.Rectangle{
+		p.dash_impact_pos.x - f32(DASH_IMPACT_SIZE) / 2,
+		p.dash_impact_pos.y - f32(DASH_IMPACT_SIZE),
+		f32(DASH_IMPACT_SIZE),
+		f32(DASH_IMPACT_SIZE),
+	}
+	raylib.DrawTexturePro(p.dash_impact_tex, src, dst, {0, 0}, 0, raylib.WHITE)
 }
 
 // ---------------------------------------------------------------------------

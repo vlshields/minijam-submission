@@ -57,7 +57,8 @@ metadata {
 
             assets/tiles/ground_blood1.png,
             assets/tiles/ground_blood3.png,
-            assets/tiles/ground_blood1.png,
+            assets/tiles/ground_blood2.png,
+            assets/tiles/ground_blood4.png
             assets/tiles/ground.png
         ],
         passable:false,
@@ -106,13 +107,18 @@ metadata {
           assets/tiles/ground.png,
           assets/tiles/platform_crackedbottom1.png,
           assets/tiles/platform_mossybottom1.png,
-          assets/tiles/platform_mossybottom1.png
+          assets/tiles/platform_mossybottom2.png,
+          assets/tiles/platform_mossybottom3.png,
+          assets/tiles/platform_mossybottom4.png,
+          assets/tiles/platform_mossybottom5.png,
+          assets/tiles/platform_mossybottom6.png
           ],
           passable:false,
         collectable:false,
         other: nil
 
     }
+
           s: {
   tiles:nil
     passable:nil,

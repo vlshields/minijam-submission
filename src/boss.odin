@@ -379,6 +379,14 @@ update_ember_demon :: proc(
 		}
 	}
 
+	if alive_and_hittable && player.dash_impact_active && !player.dash_impact_damage_dealt {
+		impact_rect := get_dash_impact_rect(player)
+		ehb := ed_get_hitbox(ed)
+		if raylib.CheckCollisionRecs(impact_rect, ehb) {
+			ed_take_damage(ed, DASH_IMPACT_DAMAGE, player, sfx_hit, bp)
+		}
+	}
+
 	// Safety: kill if fallen below map
 	map_bottom := f32(map_data.height) * TILE_SIZE + 64
 	if ed.pos.y > map_bottom {

@@ -291,6 +291,24 @@ update_enemies :: proc(
 			}
 		}
 
+		// Dash impact collision
+		if e.state != .Dead && e.state != .Dying && player.dash_impact_active && !player.dash_impact_damage_dealt {
+			impact_rect := get_dash_impact_rect(player)
+			ehb := get_enemy_hitbox(e)
+			if raylib.CheckCollisionRecs(impact_rect, ehb) {
+				e.hp -= DASH_IMPACT_DAMAGE
+				e.damage_flash_timer = DAMAGE_FLASH_DURATION
+				raylib.PlaySound(sfx_hit)
+				if e.hp <= 0 {
+					e.state = .Dying
+					e.current_frame = 0
+					e.anim_timer = 0
+					e.vel = {}
+					bp^ += BP_FLAMEBALL_KILL
+				}
+			}
+		}
+
 		// Safety: kill if fallen far below map
 		map_bottom := f32(map_data.height) * TILE_SIZE + 64
 		if e.pos.y > map_bottom {
@@ -781,6 +799,25 @@ update_devils :: proc(
 			dhb := devil_get_hitbox(d)
 			if raylib.CheckCollisionRecs(attack_rect, dhb) {
 				d.hp -= QUICK_ATTACK_DAMAGE
+				d.damage_flash_timer = DAMAGE_FLASH_DURATION
+				raylib.PlaySound(sfx_hit)
+				if d.hp <= 0 {
+					d.state = .Dying
+					d.current_frame = 0
+					d.anim_timer = 0
+					d.vel = {}
+					d.bolt_active = false
+					bp^ += BP_DEVIL_KILL
+				}
+			}
+		}
+
+		// Dash impact collision
+		if d.state != .Dead && d.state != .Dying && player.dash_impact_active && !player.dash_impact_damage_dealt {
+			impact_rect := get_dash_impact_rect(player)
+			dhb := devil_get_hitbox(d)
+			if raylib.CheckCollisionRecs(impact_rect, dhb) {
+				d.hp -= DASH_IMPACT_DAMAGE
 				d.damage_flash_timer = DAMAGE_FLASH_DURATION
 				raylib.PlaySound(sfx_hit)
 				if d.hp <= 0 {
@@ -1399,6 +1436,25 @@ update_flamewardens :: proc(
 			fhb := get_fw_hitbox(fw)
 			if raylib.CheckCollisionRecs(attack_rect, fhb) {
 				fw.hp -= QUICK_ATTACK_DAMAGE
+				fw.damage_flash_timer = DAMAGE_FLASH_DURATION
+				raylib.PlaySound(sfx_hit)
+				if fw.hp <= 0 {
+					fw.state = .Dying
+					fw.current_frame = 0
+					fw.anim_timer = 0
+					fw.vel = {}
+					fw.flame_active = false
+					bp^ += BP_FLAMEWARDEN_KILL
+				}
+			}
+		}
+
+		// Dash impact collision
+		if fw.state != .Dead && fw.state != .Dying && player.dash_impact_active && !player.dash_impact_damage_dealt {
+			impact_rect := get_dash_impact_rect(player)
+			fhb := get_fw_hitbox(fw)
+			if raylib.CheckCollisionRecs(impact_rect, fhb) {
+				fw.hp -= DASH_IMPACT_DAMAGE
 				fw.damage_flash_timer = DAMAGE_FLASH_DURATION
 				raylib.PlaySound(sfx_hit)
 				if fw.hp <= 0 {
