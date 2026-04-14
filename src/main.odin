@@ -29,7 +29,7 @@ Game_State :: struct {
 	enemies:            Enemy_Pool,
 	flamewardens:       FW_Pool,
 	devils:             Devil_Pool,
-	ember_demon:        Ember_Demon,
+	moloch:        Moloch,
 	white_flash_shader: raylib.Shader,
 	render_target:      raylib.RenderTexture2D,
 	screen_scale:   f32,
@@ -56,6 +56,7 @@ Game_State :: struct {
 	sfx_back:         raylib.Sound,
 	sfx_hit:          raylib.Sound,
 	sfx_dash:         raylib.Sound,
+	sfx_dash_impact:  raylib.Sound,
 	sfx_quick_attack: raylib.Sound,
 	sfx_summon:            raylib.Sound,
 	sfx_despawn:           raylib.Sound,
@@ -67,6 +68,7 @@ Game_State :: struct {
 	sfx_flameball_agroed:  raylib.Sound,
 	sfx_fw_attack:         raylib.Sound,
 	sfx_devil_attack:      raylib.Sound,
+	sfx_you_died:          raylib.Sound,
 	music_theme:      raylib.Music,
 	music_cutscene:   raylib.Music,
 	music_boss:       raylib.Music,
@@ -95,6 +97,7 @@ Game_State :: struct {
 	options_selection: int,
 
 	// Cutscene
+	cutscene_scene:  Cutscene_Scene,
 	cutscene_line:   int,
 	cutscene_shake:  f32,
 	cutscene_played: bool,
@@ -104,6 +107,12 @@ Game_State :: struct {
 
 	// Boss intro
 	boss_intro_timer: f32,
+
+	// Game over fade
+	game_over_timer: f32,
+
+	// Map transition fade-in (counts down while new map fades from black)
+	map_fade_in_timer: f32,
 
 
 }
@@ -307,23 +316,23 @@ start_round :: proc() {
 		}
 	}
 
-	// Ember Demon boss
-	gs.ember_demon.active = false
-	gs.ember_demon.teleport_count = 0
+	// Moloch boss
+	gs.moloch.active = false
+	gs.moloch.teleport_count = 0
 	for row, ry in gs.map_data.grid {
 		for cell, cx in row {
 			if cell.symbol == 'B' {
 				td, has_meta := gs.map_data.metadata['B']
 				if has_meta {
 					spawn_key := dm.extract_kv(td.other, "spawn_point")
-					is_boss := spawn_key == "ember_demon"
+					is_boss := spawn_key == "moloch"
 					delete(spawn_key)
 					if is_boss {
 						pos := raylib.Vector2{
 							f32(cx) * TILE_SIZE + TILE_SIZE / 2,
 							f32(ry) * TILE_SIZE,
 						}
-						spawn_ember_demon(&gs.ember_demon, pos)
+						spawn_moloch(&gs.moloch, pos)
 					}
 				}
 			}
@@ -335,14 +344,14 @@ start_round :: proc() {
 				td, has_meta := gs.map_data.metadata['t']
 				if has_meta {
 					tp_key := dm.extract_kv(td.other, "teleport_point")
-					is_ed_tp := tp_key == "ember_demon"
+					is_ed_tp := tp_key == "moloch"
 					delete(tp_key)
 					if is_ed_tp {
 						pos := raylib.Vector2{
 							f32(cx) * TILE_SIZE + TILE_SIZE / 2,
 							f32(ry) * TILE_SIZE,
 						}
-						add_ember_demon_teleport(&gs.ember_demon, pos)
+						add_moloch_teleport(&gs.moloch, pos)
 					}
 				}
 			}
@@ -362,8 +371,9 @@ start_round :: proc() {
 	gs.round_timer = durations[gs.current_round]
 	gs.bp_drain_timer = BP_DRAIN_INTERVAL
 	gs.phase_timer = 0
+	gs.map_fade_in_timer = MAP_FADE_IN_DURATION
 
-	if gs.ember_demon.active {
+	if gs.moloch.active {
 		gs.phase = .Boss_Intro
 		gs.boss_intro_timer = BOSS_INTRO_DURATION
 		raylib.PlaySound(gs.sfx_boss_laugh)
@@ -375,7 +385,7 @@ start_round :: proc() {
 	if raylib.IsMusicStreamPlaying(gs.music_cutscene) {
 		raylib.StopMusicStream(gs.music_cutscene)
 	}
-	if gs.ember_demon.active {
+	if gs.moloch.active {
 		// Boss round: switch to boss music
 		if raylib.IsMusicStreamPlaying(gs.music_theme) {
 			raylib.StopMusicStream(gs.music_theme)
@@ -427,6 +437,7 @@ init :: proc() {
 	gs.sfx_back = raylib.LoadSound("assets/audio/sfx/negative-back.wav")
 	gs.sfx_hit = raylib.LoadSound("assets/audio/sfx/hit.wav")
 	gs.sfx_dash = raylib.LoadSound("assets/audio/sfx/player_dash.wav")
+	gs.sfx_dash_impact = raylib.LoadSound("assets/audio/sfx/player_dash_ground_impact.wav")
 	gs.sfx_quick_attack = raylib.LoadSound("assets/audio/sfx/quick_attacks.wav")
 	gs.sfx_summon = raylib.LoadSound("assets/audio/sfx/summon_scythe_or_fangs.wav")
 	gs.sfx_despawn = raylib.LoadSound("assets/audio/sfx/scythe_or_fangs_despawn.wav")
@@ -438,6 +449,7 @@ init :: proc() {
 	gs.sfx_flameball_agroed = raylib.LoadSound("assets/audio/sfx/enemy_flameball_agroed.wav")
 	gs.sfx_fw_attack = raylib.LoadSound("assets/audio/sfx/enemy_flamwarden attacks.wav")
 	gs.sfx_devil_attack = raylib.LoadSound("assets/audio/sfx/enemy_devil_attacks.wav")
+	gs.sfx_you_died = raylib.LoadSound("assets/audio/sfx/you_died.wav")
 	gs.music_theme = raylib.LoadMusicStream("assets/audio/soundtrack/theme.ogg")
 	gs.music_cutscene = raylib.LoadMusicStream("assets/audio/soundtrack/cutscene_w_belial.ogg")
 	gs.music_boss = raylib.LoadMusicStream("assets/audio/soundtrack/boss_fight_theme.ogg")
@@ -449,6 +461,7 @@ init :: proc() {
 	raylib.SetSoundVolume(gs.sfx_back, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_hit, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_dash, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_dash_impact, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_quick_attack, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_summon, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_despawn, gs.sfx_volume)
@@ -460,6 +473,7 @@ init :: proc() {
 	raylib.SetSoundVolume(gs.sfx_flameball_agroed, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_fw_attack, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_devil_attack, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_you_died, gs.sfx_volume)
 	raylib.SetMusicVolume(gs.music_theme, gs.music_volume)
 	raylib.SetMusicVolume(gs.music_cutscene, gs.music_volume)
 	raylib.SetMusicVolume(gs.music_boss, gs.music_volume)
@@ -475,7 +489,7 @@ init :: proc() {
 	init_enemies(&gs.enemies)
 	init_flamewardens(&gs.flamewardens)
 	init_devils(&gs.devils)
-	init_ember_demon(&gs.ember_demon)
+	init_moloch(&gs.moloch)
 
 
 	// Camera
@@ -604,6 +618,7 @@ shutdown :: proc() {
 	raylib.UnloadSound(gs.sfx_back)
 	raylib.UnloadSound(gs.sfx_hit)
 	raylib.UnloadSound(gs.sfx_dash)
+	raylib.UnloadSound(gs.sfx_dash_impact)
 	raylib.UnloadSound(gs.sfx_quick_attack)
 	raylib.UnloadSound(gs.sfx_summon)
 	raylib.UnloadSound(gs.sfx_despawn)
@@ -615,6 +630,7 @@ shutdown :: proc() {
 	raylib.UnloadSound(gs.sfx_flameball_agroed)
 	raylib.UnloadSound(gs.sfx_fw_attack)
 	raylib.UnloadSound(gs.sfx_devil_attack)
+	raylib.UnloadSound(gs.sfx_you_died)
 	raylib.UnloadMusicStream(gs.music_theme)
 	raylib.UnloadMusicStream(gs.music_cutscene)
 	raylib.UnloadMusicStream(gs.music_boss)
@@ -629,7 +645,7 @@ shutdown :: proc() {
 	unload_enemies(&gs.enemies)
 	unload_flamewardens(&gs.flamewardens)
 	unload_devils(&gs.devils)
-	unload_ember_demon(&gs.ember_demon)
+	unload_moloch(&gs.moloch)
 
 	raylib.CloseWindow()
 }
@@ -737,6 +753,7 @@ update_main_menu :: proc(dt: f32) {
 		case 0: // Play
 			raylib.PlaySound(gs.sfx_confirm)
 			if !gs.cutscene_played {
+				gs.cutscene_scene = .Opening
 				gs.cutscene_line = 0
 				gs.cutscene_shake = 0
 				gs.phase = .Cutscene
@@ -872,11 +889,15 @@ Cutscene_Line :: struct {
 	shake:   bool,
 }
 
-CUTSCENE_LINE_COUNT :: 8
+Cutscene_Scene :: enum {
+	Opening,
+	Moloch_Confronts_Abaddon,
+}
+
 CUTSCENE_SHAKE_DURATION :: f32(0.4)
 
 @(private = "file")
-OPENING_SCENE : [CUTSCENE_LINE_COUNT]Cutscene_Line : {
+OPENING_SCENE := [?]Cutscene_Line{
 	{"BELIAL",  "Abaddon? What are you doing? I am your friend!\nEver since this city was founded.", false},
 	{"Abaddon", "*chuckles* there are no allies in Hell.", false},
 	{"BELIAL",  "What could you possibly stand to gain from killing us\ndemonfolk; you are an Angel of Death.\nYou need HUMAN blood to survive!", false},
@@ -888,13 +909,49 @@ OPENING_SCENE : [CUTSCENE_LINE_COUNT]Cutscene_Line : {
 }
 
 @(private = "file")
-update_cutscene :: proc(dt: f32) {
-	// Skip entire cutscene
-	if input_back() {
+MOLOCH_CONFRONTS_ABADDON_SCENE := [?]Cutscene_Line{
+	{"???",      "HEEELLPPPP!!!!", false},
+	{"Abaddon",  "Gadreela? Is that you???", false},
+	{"Gadreela", "Dad!?", false},
+	{"Abaddon",  "Grrr are you alright? Who is behind this!?", true},
+	{"MOLOCH",   "Ha. You do not deserve a child.\nYou are so concerned with providing for her.\nBut you forgot to provide what really matters.", false},
+	{"Abaddon",  "Moloch. I forgot you are an expert on this subject.\nWhat did I forget to provide?", false},
+	{"MOLOCH",   "Time. Attention.\nYou let me take her right from underneath you.", false},
+	{"Abaddon",  "Listen, Moloch. You are the brawn of the royal pantheon here,\nnot the brains. Gadreela is the first of her kind.", true},
+	{"Abaddon",  "Basic needs come first. SHE MUST EAT.\nAnd I am not worried about you taking her. I can easily find\nand kill you. In a few years, she will be able to too.", false},
+}
+
+@(private = "file")
+current_cutscene :: proc() -> []Cutscene_Line {
+	switch gs.cutscene_scene {
+	case .Opening:
+		return OPENING_SCENE[:]
+	case .Moloch_Confronts_Abaddon:
+		return MOLOCH_CONFRONTS_ABADDON_SCENE[:]
+	}
+	return OPENING_SCENE[:]
+}
+
+@(private = "file")
+end_cutscene :: proc() {
+	raylib.StopMusicStream(gs.music_cutscene)
+	switch gs.cutscene_scene {
+	case .Opening:
 		gs.cutscene_played = true
 		gs.phase = .Pre_Round
-		raylib.StopMusicStream(gs.music_cutscene)
 		raylib.PlayMusicStream(gs.music_theme)
+	case .Moloch_Confronts_Abaddon:
+		start_round()
+	}
+}
+
+@(private = "file")
+update_cutscene :: proc(dt: f32) {
+	scene := current_cutscene()
+
+	// Skip entire cutscene
+	if input_back() {
+		end_cutscene()
 		return
 	}
 
@@ -906,14 +963,10 @@ update_cutscene :: proc(dt: f32) {
 	// Advance dialogue
 	if input_confirm() {
 		gs.cutscene_line += 1
-		if gs.cutscene_line >= CUTSCENE_LINE_COUNT {
-			gs.cutscene_played = true
-			gs.phase = .Pre_Round
-			raylib.StopMusicStream(gs.music_cutscene)
-			raylib.ResumeMusicStream(gs.music_theme)
+		if gs.cutscene_line >= len(scene) {
+			end_cutscene()
 			return
 		}
-		scene := OPENING_SCENE
 		if scene[gs.cutscene_line].shake {
 			gs.cutscene_shake = CUTSCENE_SHAKE_DURATION
 		}
@@ -924,7 +977,7 @@ update_cutscene :: proc(dt: f32) {
 draw_cutscene :: proc() {
 	raylib.ClearBackground(raylib.BLACK)
 
-	scene := OPENING_SCENE
+	scene := current_cutscene()
 	line := scene[gs.cutscene_line]
 
 	// Screenshake offset
@@ -947,8 +1000,15 @@ draw_cutscene :: proc() {
 
 	// Speaker name
 	speaker_color: raylib.Color = {0xAA, 0x82, 0xFF, 0xFF}
-	if string(line.speaker)[0] == 'B' {
+	switch string(line.speaker)[0] {
+	case 'B':
 		speaker_color = {0xFF, 0x99, 0x33, 0xFF}
+	case 'M':
+		speaker_color = {0xFF, 0x44, 0x33, 0xFF}
+	case 'G':
+		speaker_color = {0xFF, 0x99, 0xCC, 0xFF}
+	case '?':
+		speaker_color = {0x99, 0x99, 0x99, 0xFF}
 	}
 	raylib.DrawText(line.speaker, BOX_X + 10 + shake_x, BOX_Y + 8 + shake_y, 10, speaker_color)
 
@@ -998,6 +1058,35 @@ draw_pre_round :: proc() {
 	raylib.DrawText(prompt, (SCREEN_WIDTH - prompt_w) / 2, SCREEN_HEIGHT - 40, 8, raylib.Color{150, 150, 150, 255})
 }
 
+// ---------------------------------------------------------------------------
+// Map transition fades
+// ---------------------------------------------------------------------------
+
+MAP_FADE_IN_DURATION  :: f32(0.9)
+ROUND_WON_FADE_DURATION :: f32(1.4)
+
+@(private = "file")
+ease_out_quad :: proc(t: f32) -> f32 {
+	tc := clamp(t, 0, 1)
+	return 1 - (1 - tc) * (1 - tc)
+}
+
+@(private = "file")
+ease_in_quad :: proc(t: f32) -> f32 {
+	tc := clamp(t, 0, 1)
+	return tc * tc
+}
+
+@(private = "file")
+draw_map_fade_in_overlay :: proc() {
+	if gs.map_fade_in_timer <= 0 {
+		return
+	}
+	t := gs.map_fade_in_timer / MAP_FADE_IN_DURATION
+	alpha := u8(ease_in_quad(t) * 255)
+	raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, alpha})
+}
+
 // Phase: Boss Intro
 // ---------------------------------------------------------------------------
 
@@ -1005,6 +1094,9 @@ BOSS_INTRO_DURATION :: 2.0
 
 @(private = "file")
 update_boss_intro :: proc(dt: f32) {
+	if gs.map_fade_in_timer > 0 {
+		gs.map_fade_in_timer -= dt
+	}
 	gs.boss_intro_timer -= dt
 	if gs.boss_intro_timer <= 0 {
 		gs.phase = .Playing
@@ -1016,7 +1108,7 @@ draw_boss_intro :: proc() {
 	draw_parallax_bg()
 	raylib.BeginMode2D(gs.camera)
 	draw_map()
-	draw_ember_demon(&gs.ember_demon, gs.white_flash_shader)
+	draw_moloch(&gs.moloch, gs.white_flash_shader)
 	draw_player(&gs.player, gs.white_flash_shader)
 	draw_companion(&gs.companion, &gs.player)
 	draw_blood_scythe(&gs.blood_scythe, &gs.player)
@@ -1027,7 +1119,9 @@ draw_boss_intro :: proc() {
 	// Boss HP bar slides up from below the screen
 	progress := 1.0 - (gs.boss_intro_timer / BOSS_INTRO_DURATION)
 	bar_alpha := u8(clamp(progress * 2.0, 0.0, 1.0) * 255.0) // fade in over first half
-	draw_boss_hp_bar_intro(&gs.ember_demon, bar_alpha)
+	draw_boss_hp_bar_intro(&gs.moloch, bar_alpha)
+
+	draw_map_fade_in_overlay()
 }
 
 // Phase: Playing
@@ -1035,6 +1129,9 @@ draw_boss_intro :: proc() {
 
 @(private = "file")
 update_playing :: proc(dt: f32) {
+	if gs.map_fade_in_timer > 0 {
+		gs.map_fade_in_timer -= dt
+	}
 	if input_pause() {
 		raylib.PlaySound(gs.sfx_back)
 		gs.phase = .Paused
@@ -1063,7 +1160,9 @@ update_playing :: proc(dt: f32) {
 		raylib.StopMusicStream(gs.music_boss)
 		raylib.StopMusicStream(gs.music_theme)
 		raylib.StopSound(gs.sfx_footsteps)
+		raylib.PlaySound(gs.sfx_you_died)
 		gs.phase = .Game_Over
+		gs.game_over_timer = 0
 		return
 	}
 
@@ -1073,7 +1172,7 @@ update_playing :: proc(dt: f32) {
 		if gs.round_timer <= 0 {
 			gs.round_timer = 0
 			gs.phase = .Round_Won
-			gs.phase_timer = 2.0
+			gs.phase_timer = ROUND_WON_FADE_DURATION
 			raylib.StopSound(gs.sfx_footsteps)
 			return
 		}
@@ -1083,6 +1182,7 @@ update_playing :: proc(dt: f32) {
 	prev_jumps := gs.player.jumps_left
 	prev_qa_state := gs.player.quick_attack_state
 	prev_dashing := gs.player.dashing
+	prev_dash_impact := gs.player.dash_impact_active
 	prev_comp_state := gs.companion.state
 	prev_scythe_state := gs.blood_scythe.state
 	prev_player_flash := gs.player.damage_flash_timer
@@ -1099,6 +1199,12 @@ update_playing :: proc(dt: f32) {
 	// SFX: dash
 	if !prev_dashing && gs.player.dashing {
 		raylib.PlaySound(gs.sfx_dash)
+	}
+
+	// SFX + screenshake: dash ground impact
+	if !prev_dash_impact && gs.player.dash_impact_active {
+		raylib.PlaySound(gs.sfx_dash_impact)
+		gs.screen_shake = SCREENSHAKE_DURATION
 	}
 
 	// SFX: quick attack
@@ -1152,7 +1258,7 @@ update_playing :: proc(dt: f32) {
 	update_enemies(&gs.enemies, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, gs.sfx_flameball_agroed, dt)
 	update_flamewardens(&gs.flamewardens, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, gs.sfx_fw_attack, dt)
 	update_devils(&gs.devils, &gs.player, &gs.companion, &gs.blood_scythe, &gs.camera, &gs.map_data, &gs.blood_points, gs.enemy_scale, gs.sfx_hit, gs.sfx_devil_attack, dt)
-	update_ember_demon(&gs.ember_demon, &gs.player, &gs.companion, &gs.blood_scythe, &gs.map_data, &gs.blood_points, gs.sfx_hit, gs.sfx_boss_breath, gs.sfx_boss_meteor, dt)
+	update_moloch(&gs.moloch, &gs.player, &gs.companion, &gs.blood_scythe, &gs.map_data, &gs.blood_points, gs.sfx_hit, gs.sfx_boss_breath, gs.sfx_boss_meteor, dt)
 
 	// Mark dash impact damage as dealt after all enemies processed
 	if gs.player.dash_impact_active && !gs.player.dash_impact_damage_dealt {
@@ -1160,7 +1266,7 @@ update_playing :: proc(dt: f32) {
 	}
 
 	// Boss defeated — game won
-	if gs.ember_demon.active && gs.ember_demon.state == .Dead {
+	if gs.moloch.active && gs.moloch.state == .Dead {
 		raylib.StopMusicStream(gs.music_boss)
 		raylib.StopSound(gs.sfx_footsteps)
 		gs.phase = .Game_Won
@@ -1190,7 +1296,7 @@ update_playing :: proc(dt: f32) {
 				if d.state != .Dead && d.damage_flash_timer == DAMAGE_FLASH_DURATION { hit_detected = true; break }
 			}
 		}
-		if !hit_detected && gs.ember_demon.active && gs.ember_demon.state != .Dead && gs.ember_demon.damage_flash_timer == DAMAGE_FLASH_DURATION {
+		if !hit_detected && gs.moloch.active && gs.moloch.state != .Dead && gs.moloch.damage_flash_timer == DAMAGE_FLASH_DURATION {
 			hit_detected = true
 		}
 		if hit_detected {
@@ -1209,7 +1315,7 @@ draw_playing :: proc() {
 	draw_enemies(&gs.enemies, gs.white_flash_shader)
 	draw_flamewardens(&gs.flamewardens, gs.white_flash_shader)
 	draw_devils(&gs.devils, gs.white_flash_shader)
-	draw_ember_demon(&gs.ember_demon, gs.white_flash_shader)
+	draw_moloch(&gs.moloch, gs.white_flash_shader)
 	draw_player(&gs.player, gs.white_flash_shader)
 	draw_companion(&gs.companion, &gs.player)
 	draw_blood_scythe(&gs.blood_scythe, &gs.player)
@@ -1219,7 +1325,9 @@ draw_playing :: proc() {
 
 	draw_player_hud(&gs.player)
 	draw_bp_hud(gs.blood_points, gs.round_timer, gs.current_round)
-	draw_boss_hp_bar(&gs.ember_demon)
+	draw_boss_hp_bar(&gs.moloch)
+
+	draw_map_fade_in_overlay()
 }
 
 // ---------------------------------------------------------------------------
@@ -1466,6 +1574,16 @@ update_round_won :: proc(dt: f32) {
 		if gs.current_round >= ROUND_COUNT {
 			gs.current_round = 0
 			gs.phase = .Main_Menu
+		} else if gs.current_round == 3 {
+			// Play Moloch confronts Abaddon cutscene before level4
+			gs.cutscene_scene = .Moloch_Confronts_Abaddon
+			gs.cutscene_line = 0
+			gs.cutscene_shake = 0
+			gs.phase = .Cutscene
+			if raylib.IsMusicStreamPlaying(gs.music_theme) {
+				raylib.StopMusicStream(gs.music_theme)
+			}
+			raylib.PlayMusicStream(gs.music_cutscene)
 		} else {
 			start_round()
 		}
@@ -1480,19 +1598,24 @@ draw_round_won :: proc() {
 	draw_enemies(&gs.enemies, gs.white_flash_shader)
 	draw_flamewardens(&gs.flamewardens, gs.white_flash_shader)
 	draw_devils(&gs.devils, gs.white_flash_shader)
-	draw_ember_demon(&gs.ember_demon, gs.white_flash_shader)
+	draw_moloch(&gs.moloch, gs.white_flash_shader)
 	draw_player(&gs.player, gs.white_flash_shader)
 	raylib.EndMode2D()
 
-	raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, 160})
+	// Eased fade-to-black based on phase_timer countdown
+	fade_t := 1 - (gs.phase_timer / ROUND_WON_FADE_DURATION)
+	overlay_alpha := u8(ease_out_quad(fade_t) * 255)
+	raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, overlay_alpha})
 
+	// Title/prompt fade in with the overlay
+	text_alpha := u8(ease_out_quad(fade_t) * 255)
 	title := fmt.ctprintf("ROUND %d COMPLETE", gs.current_round + 1)
 	title_w := raylib.MeasureText(title, 20)
-	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, SCREEN_HEIGHT / 2 - 20, 20, raylib.WHITE)
+	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, SCREEN_HEIGHT / 2 - 20, 20, raylib.Color{255, 255, 255, text_alpha})
 
 	sub : cstring = gamepad_active() ? "Press A to continue" : "Press ENTER to continue"
 	sub_w := raylib.MeasureText(sub, 10)
-	raylib.DrawText(sub, (SCREEN_WIDTH - sub_w) / 2, SCREEN_HEIGHT / 2 + 10, 10, raylib.Color{200, 200, 200, 255})
+	raylib.DrawText(sub, (SCREEN_WIDTH - sub_w) / 2, SCREEN_HEIGHT / 2 + 10, 10, raylib.Color{200, 200, 200, text_alpha})
 }
 
 // ---------------------------------------------------------------------------
@@ -1516,19 +1639,23 @@ draw_game_won :: proc() {
 	draw_parallax_bg()
 	raylib.BeginMode2D(gs.camera)
 	draw_map()
-	draw_ember_demon(&gs.ember_demon, gs.white_flash_shader)
+	draw_moloch(&gs.moloch, gs.white_flash_shader)
 	draw_player(&gs.player, gs.white_flash_shader)
 	raylib.EndMode2D()
 
-	raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, 160})
+	fade_t := 1 - (gs.phase_timer / 3.0)
+	eased := ease_out_quad(fade_t)
+	overlay_alpha := u8(eased * 255)
+	raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, overlay_alpha})
 
+	text_alpha := u8(eased * 255)
 	title : cstring = "VICTORY"
 	title_w := raylib.MeasureText(title, 20)
-	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, SCREEN_HEIGHT / 2 - 20, 20, raylib.Color{0xFF, 0xD7, 0x00, 0xFF})
+	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, SCREEN_HEIGHT / 2 - 20, 20, raylib.Color{0xFF, 0xD7, 0x00, text_alpha})
 
 	sub : cstring = gamepad_active() ? "Press A to return to menu" : "Press ENTER to return to menu"
 	sub_w := raylib.MeasureText(sub, 10)
-	raylib.DrawText(sub, (SCREEN_WIDTH - sub_w) / 2, SCREEN_HEIGHT / 2 + 10, 10, raylib.Color{200, 200, 200, 255})
+	raylib.DrawText(sub, (SCREEN_WIDTH - sub_w) / 2, SCREEN_HEIGHT / 2 + 10, 10, raylib.Color{200, 200, 200, text_alpha})
 }
 
 // ---------------------------------------------------------------------------
@@ -1536,8 +1663,13 @@ draw_game_won :: proc() {
 // ---------------------------------------------------------------------------
 
 @(private = "file")
+GAME_OVER_FADE_DURATION :: f32(2.0)
+GAME_OVER_MENU_DELAY    :: f32(1.2)
+
+@(private = "file")
 update_game_over :: proc(dt: f32) {
-	if input_confirm() {
+	gs.game_over_timer += dt
+	if gs.game_over_timer >= GAME_OVER_FADE_DURATION && input_confirm() {
 		unload_map_data()
 		gs.current_round = 0
 		start_round()
@@ -1552,15 +1684,26 @@ draw_game_over :: proc() {
 	draw_player(&gs.player, gs.white_flash_shader)
 	raylib.EndMode2D()
 
-	raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, 180})
+	// Ease-to-black overlay (quadratic ease-out)
+	fade_t := clamp(gs.game_over_timer / GAME_OVER_FADE_DURATION, 0, 1)
+	eased := 1 - (1 - fade_t) * (1 - fade_t)
+	overlay_alpha := u8(eased * 255)
+	raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, overlay_alpha})
+
+	// Menu fade-in after short delay
+	menu_t := clamp((gs.game_over_timer - GAME_OVER_MENU_DELAY) / (GAME_OVER_FADE_DURATION - GAME_OVER_MENU_DELAY), 0, 1)
+	if menu_t <= 0 {
+		return
+	}
+	menu_alpha := u8(menu_t * 255)
 
 	title : cstring = gs.player.hp <= 0 ? "YOU DIED" : "BLOOD DEPLETED"
 	title_w := raylib.MeasureText(title, 20)
-	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, SCREEN_HEIGHT / 2 - 20, 20, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
+	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, SCREEN_HEIGHT / 2 - 20, 20, raylib.Color{0xFF, 0x33, 0x33, menu_alpha})
 
 	sub : cstring = gamepad_active() ? "Press A to play again" : "Press ENTER to play again"
 	sub_w := raylib.MeasureText(sub, 10)
-	raylib.DrawText(sub, (SCREEN_WIDTH - sub_w) / 2, SCREEN_HEIGHT / 2 + 10, 10, raylib.WHITE)
+	raylib.DrawText(sub, (SCREEN_WIDTH - sub_w) / 2, SCREEN_HEIGHT / 2 + 10, 10, raylib.Color{255, 255, 255, menu_alpha})
 }
 
 // ---------------------------------------------------------------------------
@@ -1575,6 +1718,7 @@ apply_volumes :: proc() {
 	raylib.SetSoundVolume(gs.sfx_back, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_hit, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_dash, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_dash_impact, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_quick_attack, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_summon, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_despawn, gs.sfx_volume)
@@ -1586,6 +1730,7 @@ apply_volumes :: proc() {
 	raylib.SetSoundVolume(gs.sfx_flameball_agroed, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_fw_attack, gs.sfx_volume)
 	raylib.SetSoundVolume(gs.sfx_devil_attack, gs.sfx_volume)
+	raylib.SetSoundVolume(gs.sfx_you_died, gs.sfx_volume)
 	raylib.SetMusicVolume(gs.music_theme, gs.music_volume)
 	raylib.SetMusicVolume(gs.music_cutscene, gs.music_volume)
 	raylib.SetMusicVolume(gs.music_boss, gs.music_volume)

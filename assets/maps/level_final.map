@@ -124,7 +124,7 @@ metadata {
   tiles:nil
     passable:nil,
   collectable:nil,
-  other: spawn_point=ember_demon
+  other: spawn_point=moloch
       }
 
       g: {
@@ -137,7 +137,7 @@ metadata {
   tiles:nil
     passable:nil,
   collectable:nil,
-  other: invisible=true,teleport_point=ember_demon
+  other: invisible=true,teleport_point=moloch
                 }
 
 }

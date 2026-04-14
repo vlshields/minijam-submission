@@ -101,19 +101,19 @@ DEVIL_RANGED_ATTACK_RANGE  :: 240.0
 DEVIL_RANGED_BOLT_SPEED    :: 400.0
 MAX_DEVILS                 :: 16
 
-// Ember Demon (Boss)
+// Moloch (Boss)
 ED_SRC_SIZE              :: 16
 ED_HITBOX_W              :: 12
 ED_HITBOX_H              :: 14
-ED_HP                    :: 600.0
-ED_SPEED                 :: 70.0
+ED_HP                    :: 800.0
+ED_SPEED                 :: 85.0
 ED_ANIM_FPS              :: 10.0
 ED_BREATH_RANGE          :: 28.0
-ED_BREATH_DAMAGE         :: 12.0
-ED_BREATH_COOLDOWN       :: 2.5
+ED_BREATH_DAMAGE         :: 22.0
+ED_BREATH_COOLDOWN       :: 1.5
 ED_BREATH_LOOP_DURATION  :: 0.8
 ED_BREATH_SRC_SIZE       :: 32
-ED_METEOR_DAMAGE         :: 25.0
+ED_METEOR_DAMAGE         :: 35.0
 ED_METEOR_INTERVAL       :: 1.5
 ED_METEOR_SRC_SIZE       :: 32
 ED_METEOR_FALL_SPEED     :: 180.0

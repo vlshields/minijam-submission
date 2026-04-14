@@ -59,7 +59,7 @@ ED_Magma :: struct {
 	dealt_damage: bool,
 }
 
-Ember_Demon :: struct {
+Moloch :: struct {
 	active:                bool,
 	pos:                   raylib.Vector2,
 	vel:                   raylib.Vector2,
@@ -128,7 +128,7 @@ Ember_Demon :: struct {
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-init_ember_demon :: proc(ed: ^Ember_Demon) {
+init_moloch :: proc(ed: ^Moloch) {
 	ed.move_tex = raylib.LoadTexture("assets/sprites/enemy_emberdemon_move.png")
 	ed.attack_tex = raylib.LoadTexture("assets/sprites/enemy_emberdemon_ember_breath_attack.png")
 	ed.breath_start_tex = raylib.LoadTexture("assets/sprites/emberbreath_start.png")
@@ -154,7 +154,7 @@ init_ember_demon :: proc(ed: ^Ember_Demon) {
 	ed.active = false
 }
 
-spawn_ember_demon :: proc(ed: ^Ember_Demon, pos: raylib.Vector2) {
+spawn_moloch :: proc(ed: ^Moloch, pos: raylib.Vector2) {
 	ed.active = true
 	ed.pos = pos
 	ed.vel = {}
@@ -184,7 +184,7 @@ spawn_ember_demon :: proc(ed: ^Ember_Demon, pos: raylib.Vector2) {
 	}
 }
 
-add_ember_demon_teleport :: proc(ed: ^Ember_Demon, pos: raylib.Vector2) {
+add_moloch_teleport :: proc(ed: ^Moloch, pos: raylib.Vector2) {
 	if ed.teleport_count >= ED_MAX_TELEPORT_POINTS {
 		return
 	}
@@ -192,7 +192,7 @@ add_ember_demon_teleport :: proc(ed: ^Ember_Demon, pos: raylib.Vector2) {
 	ed.teleport_count += 1
 }
 
-unload_ember_demon :: proc(ed: ^Ember_Demon) {
+unload_moloch :: proc(ed: ^Moloch) {
 	raylib.UnloadTexture(ed.move_tex)
 	raylib.UnloadTexture(ed.attack_tex)
 	raylib.UnloadTexture(ed.breath_start_tex)
@@ -209,8 +209,8 @@ unload_ember_demon :: proc(ed: ^Ember_Demon) {
 // Update
 // ---------------------------------------------------------------------------
 
-update_ember_demon :: proc(
-	ed: ^Ember_Demon,
+update_moloch :: proc(
+	ed: ^Moloch,
 	player: ^Player,
 	companion: ^Companion,
 	scythe: ^Blood_Scythe,
@@ -399,7 +399,7 @@ update_ember_demon :: proc(
 // ---------------------------------------------------------------------------
 
 @(private = "file")
-ed_update_breath :: proc(ed: ^Ember_Demon, player: ^Player, sfx_hit: raylib.Sound, dt: f32) {
+ed_update_breath :: proc(ed: ^Moloch, player: ^Player, sfx_hit: raylib.Sound, dt: f32) {
 	frame_dur: f32 = 1.0 / ED_ANIM_FPS
 
 	switch ed.breath_phase {
@@ -462,7 +462,7 @@ ed_update_breath :: proc(ed: ^Ember_Demon, player: ^Player, sfx_hit: raylib.Soun
 // ---------------------------------------------------------------------------
 
 @(private = "file")
-ed_spawn_meteor :: proc(ed: ^Ember_Demon, player: ^Player, map_data: ^dm.Dot_Map) {
+ed_spawn_meteor :: proc(ed: ^Moloch, player: ^Player, map_data: ^dm.Dot_Map) {
 	slot: ^ED_Meteor = nil
 	for &m in ed.meteors {
 		if !m.active {
@@ -491,7 +491,7 @@ ed_spawn_meteor :: proc(ed: ^Ember_Demon, player: ^Player, map_data: ^dm.Dot_Map
 }
 
 @(private = "file")
-ed_update_meteors :: proc(ed: ^Ember_Demon, player: ^Player, sfx_hit: raylib.Sound, sfx_meteor: raylib.Sound, dt: f32) {
+ed_update_meteors :: proc(ed: ^Moloch, player: ^Player, sfx_hit: raylib.Sound, sfx_meteor: raylib.Sound, dt: f32) {
 	frame_dur: f32 = 1.0 / ED_ANIM_FPS
 
 	for &m in ed.meteors {
@@ -554,7 +554,7 @@ ed_update_meteors :: proc(ed: ^Ember_Demon, player: ^Player, sfx_hit: raylib.Sou
 // ---------------------------------------------------------------------------
 
 @(private = "file")
-ed_spawn_magma :: proc(ed: ^Ember_Demon, player: ^Player, map_data: ^dm.Dot_Map) {
+ed_spawn_magma :: proc(ed: ^Moloch, player: ^Player, map_data: ^dm.Dot_Map) {
 	slot: ^ED_Magma = nil
 	for &m in ed.magmas {
 		if !m.active {
@@ -581,7 +581,7 @@ ed_spawn_magma :: proc(ed: ^Ember_Demon, player: ^Player, map_data: ^dm.Dot_Map)
 }
 
 @(private = "file")
-ed_update_magma :: proc(ed: ^Ember_Demon, player: ^Player, sfx_hit: raylib.Sound, dt: f32) {
+ed_update_magma :: proc(ed: ^Moloch, player: ^Player, sfx_hit: raylib.Sound, dt: f32) {
 	frame_dur: f32 = 1.0 / ED_ANIM_FPS
 
 	for &m in ed.magmas {
@@ -655,7 +655,7 @@ ed_update_magma :: proc(ed: ^Ember_Demon, player: ^Player, sfx_hit: raylib.Sound
 // ---------------------------------------------------------------------------
 
 @(private = "file")
-ed_take_damage :: proc(ed: ^Ember_Demon, damage: f32, player: ^Player, sfx_hit: raylib.Sound, bp: ^i32) {
+ed_take_damage :: proc(ed: ^Moloch, damage: f32, player: ^Player, sfx_hit: raylib.Sound, bp: ^i32) {
 	ed.hp -= damage
 	ed.damage_flash_timer = DAMAGE_FLASH_DURATION
 	ed.consecutive_damage += damage
@@ -687,7 +687,7 @@ ed_take_damage :: proc(ed: ^Ember_Demon, damage: f32, player: ^Player, sfx_hit: 
 }
 
 @(private = "file")
-ed_start_teleport :: proc(ed: ^Ember_Demon, player: ^Player) {
+ed_start_teleport :: proc(ed: ^Moloch, player: ^Player) {
 	tp, ok := ed_find_best_teleport(ed, player)
 	if !ok {
 		return
@@ -705,7 +705,7 @@ ed_start_teleport :: proc(ed: ^Ember_Demon, player: ^Player) {
 }
 
 @(private = "file")
-ed_find_best_teleport :: proc(ed: ^Ember_Demon, player: ^Player) -> (raylib.Vector2, bool) {
+ed_find_best_teleport :: proc(ed: ^Moloch, player: ^Player) -> (raylib.Vector2, bool) {
 	if ed.teleport_count == 0 {
 		return {}, false
 	}
@@ -762,7 +762,7 @@ ed_find_best_teleport :: proc(ed: ^Ember_Demon, player: ^Player) -> (raylib.Vect
 // Draw
 // ---------------------------------------------------------------------------
 
-draw_ember_demon :: proc(ed: ^Ember_Demon, white_shader: raylib.Shader) {
+draw_moloch :: proc(ed: ^Moloch, white_shader: raylib.Shader) {
 	if !ed.active || ed.state == .Dead {
 		return
 	}
@@ -914,7 +914,7 @@ draw_ember_demon :: proc(ed: ^Ember_Demon, white_shader: raylib.Shader) {
 	}
 }
 
-draw_boss_hp_bar :: proc(ed: ^Ember_Demon) {
+draw_boss_hp_bar :: proc(ed: ^Moloch) {
 	if !ed.active || ed.state == .Dead {
 		return
 	}
@@ -924,7 +924,7 @@ draw_boss_hp_bar :: proc(ed: ^Ember_Demon) {
 	BAR_X :: (SCREEN_WIDTH - BAR_W) / 2
 	BAR_Y :: SCREEN_HEIGHT - 30
 
-	name: cstring = "Ember Demon"
+	name: cstring = "Moloch"
 	name_w := raylib.MeasureText(name, 8)
 	raylib.DrawText(name, (SCREEN_WIDTH - name_w) / 2, BAR_Y - 12, 8, raylib.Color{0xFF, 0x88, 0x33, 0xFF})
 
@@ -950,7 +950,7 @@ draw_boss_hp_bar :: proc(ed: ^Ember_Demon) {
 	raylib.DrawRectangle(BAR_X, BAR_Y, fill_w, BAR_H, fill_color)
 }
 
-draw_boss_hp_bar_intro :: proc(ed: ^Ember_Demon, alpha: u8) {
+draw_boss_hp_bar_intro :: proc(ed: ^Moloch, alpha: u8) {
 	if !ed.active || alpha == 0 {
 		return
 	}
@@ -960,7 +960,7 @@ draw_boss_hp_bar_intro :: proc(ed: ^Ember_Demon, alpha: u8) {
 	BAR_X :: (SCREEN_WIDTH - BAR_W) / 2
 	BAR_Y :: SCREEN_HEIGHT - 30
 
-	name: cstring = "Ember Demon"
+	name: cstring = "Moloch"
 	name_w := raylib.MeasureText(name, 8)
 	raylib.DrawText(name, (SCREEN_WIDTH - name_w) / 2, BAR_Y - 12, 8, raylib.Color{0xFF, 0x88, 0x33, alpha})
 
@@ -989,7 +989,7 @@ draw_boss_hp_bar_intro :: proc(ed: ^Ember_Demon, alpha: u8) {
 // ---------------------------------------------------------------------------
 
 @(private = "file")
-ed_get_hitbox :: proc(ed: ^Ember_Demon) -> raylib.Rectangle {
+ed_get_hitbox :: proc(ed: ^Moloch) -> raylib.Rectangle {
 	return {
 		ed.pos.x - f32(ED_HITBOX_W) / 2,
 		ed.pos.y - f32(ED_HITBOX_H),
@@ -999,7 +999,7 @@ ed_get_hitbox :: proc(ed: ^Ember_Demon) -> raylib.Rectangle {
 }
 
 @(private = "file")
-ed_get_breath_rect :: proc(ed: ^Ember_Demon) -> raylib.Rectangle {
+ed_get_breath_rect :: proc(ed: ^Moloch) -> raylib.Rectangle {
 	off_x: f32 = ed.facing_left ? -(f32(ED_SRC_SIZE) / 2 + f32(ED_BREATH_SRC_SIZE)) : f32(ED_SRC_SIZE) / 2
 	return {
 		ed.pos.x + off_x,
@@ -1010,7 +1010,7 @@ ed_get_breath_rect :: proc(ed: ^Ember_Demon) -> raylib.Rectangle {
 }
 
 @(private = "file")
-ed_apply_gravity :: proc(ed: ^Ember_Demon, dt: f32) {
+ed_apply_gravity :: proc(ed: ^Moloch, dt: f32) {
 	ed.vel.y += GRAVITY * dt
 	if ed.vel.y > MAX_FALL_SPEED {
 		ed.vel.y = MAX_FALL_SPEED
@@ -1018,7 +1018,7 @@ ed_apply_gravity :: proc(ed: ^Ember_Demon, dt: f32) {
 }
 
 @(private = "file")
-ed_move_and_collide :: proc(ed: ^Ember_Demon, map_data: ^dm.Dot_Map, dt: f32) {
+ed_move_and_collide :: proc(ed: ^Moloch, map_data: ^dm.Dot_Map, dt: f32) {
 	// Move X
 	ed.pos.x += ed.vel.x * dt
 	hb := ed_get_hitbox(ed)
@@ -1051,7 +1051,7 @@ ed_move_and_collide :: proc(ed: ^Ember_Demon, map_data: ^dm.Dot_Map, dt: f32) {
 }
 
 @(private = "file")
-ed_animate_loop :: proc(ed: ^Ember_Demon, total_frames: int, dt: f32) {
+ed_animate_loop :: proc(ed: ^Moloch, total_frames: int, dt: f32) {
 	if total_frames <= 1 {
 		return
 	}
@@ -1066,7 +1066,7 @@ ed_animate_loop :: proc(ed: ^Ember_Demon, total_frames: int, dt: f32) {
 }
 
 @(private = "file")
-ed_advance_oneshot :: proc(ed: ^Ember_Demon, total_frames: int, dt: f32) -> bool {
+ed_advance_oneshot :: proc(ed: ^Moloch, total_frames: int, dt: f32) -> bool {
 	frame_dur: f32 = 1.0 / ED_ANIM_FPS
 	ed.anim_timer += dt
 	if ed.anim_timer >= frame_dur {
