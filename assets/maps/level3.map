@@ -31,7 +31,7 @@ MAP_START
 ............................d.....................................................................
 ...................LppppppppppR...................................................................
 ..................................................................................................
-...b........g..................g...............d.......................b............d.............
+...b........g..................g...............d.......................b............d.........*...
 wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww
 oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo
 oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo
@@ -141,6 +141,12 @@ metadata {
     passable:nil,
   collectable:nil,
   other: spawn_point=enemy_devil
+                }
+           *: {
+  tiles:nil
+    passable:nil,
+  collectable:nil,
+  other: spawn_point=door_opens, transport_to=level4.map
                 }
 
 }

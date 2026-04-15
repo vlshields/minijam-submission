@@ -148,9 +148,8 @@ BP_DEVIL_KILL       :: 3
 BP_FLAMEWARDEN_KILL :: 5
 BP_MIN_CARRY        :: 25
 
-// Rounds (scripted)
+// Rooms (player advances by finding the door in each)
 ROUND_COUNT :: 5
-ROUND_DURATIONS : [ROUND_COUNT]f32 : {17.0, 30.0, 50.0, 60.0, 0.0}
 ROUND_MAPS : [ROUND_COUNT]string : {
 	"assets/maps/main_area_first.map",
 	"assets/maps/level2.map",

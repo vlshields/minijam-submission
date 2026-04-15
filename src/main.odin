@@ -30,6 +30,7 @@ Game_State :: struct {
 	flamewardens:       FW_Pool,
 	devils:             Devil_Pool,
 	moloch:        Moloch,
+	door:          Door,
 	white_flash_shader: raylib.Shader,
 	render_target:      raylib.RenderTexture2D,
 	screen_scale:   f32,
@@ -43,7 +44,6 @@ Game_State :: struct {
 	// Round / Blood Points
 	phase:          Game_Phase,
 	current_round:  int,
-	round_timer:    f32,
 	blood_points:   i32,
 	bp_drain_timer: f32,
 	phase_timer:    f32,
@@ -358,6 +358,25 @@ start_round :: proc() {
 		}
 	}
 
+	// Door (next-room marker). Player walks into it to transition.
+	gs.door.state = .Inactive
+	for row, ry in gs.map_data.grid {
+		for cell, cx in row {
+			if cell.symbol == '*' {
+				td, has_meta := gs.map_data.metadata['*']
+				if has_meta {
+					spawn_key := dm.extract_kv(td.other, "spawn_point")
+					is_door := spawn_key == "door_opens"
+					delete(spawn_key)
+					if is_door {
+						pos := raylib.Vector2{f32(cx) * TILE_SIZE, f32(ry) * TILE_SIZE}
+						spawn_door(&gs.door, pos)
+					}
+				}
+			}
+		}
+	}
+
 	gs.enemy_scale = 1.0
 
 	// BP: first round starts fresh, later rounds carry over with floor
@@ -367,8 +386,6 @@ start_round :: proc() {
 		gs.blood_points = BP_MIN_CARRY
 	}
 
-	durations := ROUND_DURATIONS
-	gs.round_timer = durations[gs.current_round]
 	gs.bp_drain_timer = BP_DRAIN_INTERVAL
 	gs.phase_timer = 0
 	gs.map_fade_in_timer = MAP_FADE_IN_DURATION
@@ -490,6 +507,7 @@ init :: proc() {
 	init_flamewardens(&gs.flamewardens)
 	init_devils(&gs.devils)
 	init_moloch(&gs.moloch)
+	init_door(&gs.door)
 
 
 	// Camera
@@ -646,6 +664,7 @@ shutdown :: proc() {
 	unload_flamewardens(&gs.flamewardens)
 	unload_devils(&gs.devils)
 	unload_moloch(&gs.moloch)
+	unload_door(&gs.door)
 
 	raylib.CloseWindow()
 }
@@ -1166,16 +1185,22 @@ update_playing :: proc(dt: f32) {
 		return
 	}
 
-	// Round timer (0 = infinite, for round 4 TBD)
-	if gs.round_timer > 0 {
-		gs.round_timer -= dt
-		if gs.round_timer <= 0 {
-			gs.round_timer = 0
-			gs.phase = .Round_Won
-			gs.phase_timer = ROUND_WON_FADE_DURATION
-			raylib.StopSound(gs.sfx_footsteps)
-			return
+	// Door: player must find the door to advance to the next room.
+	if gs.door.state == .Idle {
+		player_rect := raylib.Rectangle{
+			gs.player.pos.x - PLAYER_HITBOX_W / 2,
+			gs.player.pos.y - PLAYER_HITBOX_H,
+			PLAYER_HITBOX_W, PLAYER_HITBOX_H,
 		}
+		if raylib.CheckCollisionRecs(player_rect, door_hitbox(&gs.door)) {
+			gs.door.state = .Opening
+		}
+	}
+	if update_door(&gs.door, dt) {
+		gs.phase = .Round_Won
+		gs.phase_timer = ROUND_WON_FADE_DURATION
+		raylib.StopSound(gs.sfx_footsteps)
+		return
 	}
 
 	// Gameplay — capture previous states for SFX triggers
@@ -1312,6 +1337,7 @@ draw_playing :: proc() {
 	draw_parallax_bg()
 	raylib.BeginMode2D(gs.camera)
 	draw_map()
+	draw_door(&gs.door)
 	draw_enemies(&gs.enemies, gs.white_flash_shader)
 	draw_flamewardens(&gs.flamewardens, gs.white_flash_shader)
 	draw_devils(&gs.devils, gs.white_flash_shader)
@@ -1323,11 +1349,47 @@ draw_playing :: proc() {
 	raylib.EndMode2D()
 
 
+	draw_door_offscreen_marker()
+
 	draw_player_hud(&gs.player)
-	draw_bp_hud(gs.blood_points, gs.round_timer, gs.current_round)
+	draw_bp_hud(gs.blood_points)
 	draw_boss_hp_bar(&gs.moloch)
 
 	draw_map_fade_in_overlay()
+}
+
+@(private = "file")
+draw_door_offscreen_marker :: proc() {
+	if gs.door.state != .Idle {
+		return
+	}
+	door_center := raylib.Vector2{
+		gs.door.pos.x + DOOR_SRC_SIZE / 2,
+		gs.door.pos.y + DOOR_SRC_SIZE / 2,
+	}
+	screen := raylib.Vector2{
+		(door_center.x - gs.camera.target.x) * gs.camera.zoom + SCREEN_WIDTH / 2,
+		(door_center.y - gs.camera.target.y) * gs.camera.zoom + SCREEN_HEIGHT / 2,
+	}
+
+	MARGIN :: f32(14)
+	clamped := raylib.Vector2{
+		clamp(screen.x, MARGIN, SCREEN_WIDTH - MARGIN),
+		clamp(screen.y, MARGIN, SCREEN_HEIGHT - MARGIN),
+	}
+	if clamped.x == screen.x && clamped.y == screen.y {
+		return // door is on-screen
+	}
+
+	dir := raylib.Vector2{screen.x - SCREEN_WIDTH / 2, screen.y - SCREEN_HEIGHT / 2}
+	angle_rad := math.atan2_f32(dir.y, dir.x)
+	angle_deg := angle_rad * 180.0 / math.PI
+
+	pulse := (math.sin_f32(f32(raylib.GetTime()) * 6.0) + 1.0) * 0.5
+	alpha := u8(160 + 95 * pulse)
+	color := raylib.Color{0x33, 0xFF, 0x66, alpha}
+	raylib.DrawPoly(clamped, 3, 7, angle_deg, color)
+	raylib.DrawPolyLines(clamped, 3, 7, angle_deg, raylib.Color{0, 0, 0, 200})
 }
 
 // ---------------------------------------------------------------------------
@@ -1406,14 +1468,16 @@ draw_paused :: proc() {
 		return
 	}
 
+	draw_pause_map()
+
 	title: cstring = "PAUSED"
-	title_size :: i32(20)
+	title_size :: i32(16)
 	title_w := raylib.MeasureText(title, title_size)
-	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, 80, title_size, raylib.WHITE)
+	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, 140, title_size, raylib.WHITE)
 
 	item_size :: i32(10)
-	item_base_y :: i32(140)
-	item_spacing :: i32(20)
+	item_base_y :: i32(170)
+	item_spacing :: i32(16)
 
 	for item, i in PAUSE_ITEMS {
 		item_w := raylib.MeasureText(item, item_size)
@@ -1433,6 +1497,56 @@ draw_paused :: proc() {
 	arrow_x := (SCREEN_WIDTH - sel_w) / 2 - 12
 	arrow_y := item_base_y + i32(gs.pause_selection) * item_spacing
 	raylib.DrawText(">", arrow_x, arrow_y, item_size, raylib.WHITE)
+}
+
+@(private = "file")
+draw_pause_map :: proc() {
+	CELL :: i32(3)
+	mw := i32(gs.map_data.width)
+	mh := i32(gs.map_data.height)
+	map_px_w := mw * CELL
+	map_px_h := mh * CELL
+	ox := (SCREEN_WIDTH - map_px_w) / 2
+	oy := i32(16)
+
+	// Framed background
+	raylib.DrawRectangle(ox - 3, oy - 3, map_px_w + 6, map_px_h + 6, raylib.Color{0, 0, 0, 220})
+	raylib.DrawRectangleLines(ox - 3, oy - 3, map_px_w + 6, map_px_h + 6, raylib.Color{80, 80, 80, 255})
+
+	wall_color := raylib.Color{180, 180, 180, 255}
+	for row, ry in gs.map_data.grid {
+		for cell, cx in row {
+			sym := cell.symbol
+			if sym == '.' || sym == 's' || sym == 'b' || sym == 'g' ||
+			   sym == 'd' || sym == 't' || sym == '*' || sym == 'B' {
+				continue
+			}
+			x := ox + i32(cx) * CELL
+			y := oy + i32(ry) * CELL
+			raylib.DrawRectangle(x, y, CELL, CELL, wall_color)
+		}
+	}
+
+	// Player marker (yellow)
+	px := ox + i32(gs.player.pos.x / TILE_SIZE) * CELL
+	py := oy + i32(gs.player.pos.y / TILE_SIZE) * CELL
+	raylib.DrawRectangle(px - 1, py - 1, CELL + 2, CELL + 2, raylib.Color{0xFF, 0xD7, 0x00, 255})
+
+	// Door marker (pulsing green)
+	if gs.door.state != .Inactive {
+		dx := ox + i32(gs.door.pos.x / TILE_SIZE) * CELL
+		dy := oy + i32(gs.door.pos.y / TILE_SIZE) * CELL
+		pulse := (math.sin_f32(f32(raylib.GetTime()) * 4.0) + 1.0) * 0.5
+		alpha := u8(140 + 115 * pulse)
+		raylib.DrawRectangle(dx - 1, dy - 1, CELL + 2, CELL + 2, raylib.Color{0x33, 0xFF, 0x66, alpha})
+	}
+
+	// Boss marker (red)
+	if gs.moloch.active && gs.moloch.state != .Dead {
+		bx := ox + i32(gs.moloch.pos.x / TILE_SIZE) * CELL
+		by := oy + i32(gs.moloch.pos.y / TILE_SIZE) * CELL
+		raylib.DrawRectangle(bx - 1, by - 1, CELL + 2, CELL + 2, raylib.Color{0xFF, 0x33, 0x33, 255})
+	}
 }
 
 @(private = "file")
@@ -1595,6 +1709,7 @@ draw_round_won :: proc() {
 	draw_parallax_bg()
 	raylib.BeginMode2D(gs.camera)
 	draw_map()
+	draw_door(&gs.door)
 	draw_enemies(&gs.enemies, gs.white_flash_shader)
 	draw_flamewardens(&gs.flamewardens, gs.white_flash_shader)
 	draw_devils(&gs.devils, gs.white_flash_shader)
@@ -1606,16 +1721,6 @@ draw_round_won :: proc() {
 	fade_t := 1 - (gs.phase_timer / ROUND_WON_FADE_DURATION)
 	overlay_alpha := u8(ease_out_quad(fade_t) * 255)
 	raylib.DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, raylib.Color{0, 0, 0, overlay_alpha})
-
-	// Title/prompt fade in with the overlay
-	text_alpha := u8(ease_out_quad(fade_t) * 255)
-	title := fmt.ctprintf("ROUND %d COMPLETE", gs.current_round + 1)
-	title_w := raylib.MeasureText(title, 20)
-	raylib.DrawText(title, (SCREEN_WIDTH - title_w) / 2, SCREEN_HEIGHT / 2 - 20, 20, raylib.Color{255, 255, 255, text_alpha})
-
-	sub : cstring = gamepad_active() ? "Press A to continue" : "Press ENTER to continue"
-	sub_w := raylib.MeasureText(sub, 10)
-	raylib.DrawText(sub, (SCREEN_WIDTH - sub_w) / 2, SCREEN_HEIGHT / 2 + 10, 10, raylib.Color{200, 200, 200, text_alpha})
 }
 
 // ---------------------------------------------------------------------------

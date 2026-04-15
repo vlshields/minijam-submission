@@ -312,19 +312,13 @@ draw_player_hud :: proc(p: ^Player) {
 	raylib.DrawRectangle(BAR_X, BAR_Y, fill_w, BAR_H, FILL_COLOR)
 }
 
-draw_bp_hud :: proc(blood_points: i32, round_timer: f32, current_round: int) {
+draw_bp_hud :: proc(blood_points: i32) {
 	TEXT_X :: i32(8)
 	bp_text := fmt.ctprintf("BP: %d", blood_points)
 	bp_w := raylib.MeasureText(bp_text, 10)
 	PAD :: i32(3)
 	raylib.DrawRectangle(TEXT_X - PAD, 8 - PAD, bp_w + PAD * 2, 10 + PAD * 2, raylib.Color{0, 0, 0, 140})
 	raylib.DrawText(bp_text, TEXT_X, 8, 10, raylib.Color{0xFF, 0x33, 0x33, 0xFF})
-
-	timer_int := int(round_timer) + 1
-	if round_timer <= 0 { timer_int = 0 }
-	timer_text := fmt.ctprintf("Round %d  -  %d:%02d", current_round + 1, timer_int / 60, timer_int %% 60)
-	timer_w := raylib.MeasureText(timer_text, 10)
-	raylib.DrawText(timer_text, (SCREEN_WIDTH - timer_w) / 2, 8, 10, raylib.WHITE)
 }
 
 draw_player :: proc(p: ^Player, white_shader: raylib.Shader) {
