@@ -25,6 +25,7 @@ Game_State :: struct {
 	camera:         raylib.Camera2D,
 	player:         Player,
 	companion:      Companion,
+	gadreela:       Gadreela,
 	blood_scythe:   Blood_Scythe,
 	enemies:            Enemy_Pool,
 	flamewardens:       FW_Pool,
@@ -251,6 +252,28 @@ start_round :: proc() {
 
 	gs.companion.state = .Inactive
 	gs.blood_scythe.state = .Inactive
+	gs.gadreela.state = .Inactive
+
+	// Gadreela spawn point (descending levels only)
+	for row, ry in gs.map_data.grid {
+		for cell, cx in row {
+			if cell.symbol == '@' {
+				td, has_meta := gs.map_data.metadata['@']
+				if has_meta {
+					spawn_key := dm.extract_kv(td.other, "spawn_point")
+					is_daughter := spawn_key == "player_daughter"
+					delete(spawn_key)
+					if is_daughter {
+						pos := raylib.Vector2{
+							f32(cx) * TILE_SIZE + TILE_SIZE / 2,
+							f32(ry) * TILE_SIZE + TILE_SIZE,
+						}
+						spawn_gadreela(&gs.gadreela, pos, gs.player.pos.x > pos.x)
+					}
+				}
+			}
+		}
+	}
 
 	// Respawn enemies from map
 	gs.enemies.count = 0
@@ -502,6 +525,7 @@ init :: proc() {
 	// Init entity textures (loaded once, reused across rounds)
 	init_player(&gs.player, {100, 100})
 	init_companion(&gs.companion)
+	init_gadreela(&gs.gadreela)
 	init_blood_scythe(&gs.blood_scythe)
 	init_enemies(&gs.enemies)
 	init_flamewardens(&gs.flamewardens)
@@ -659,6 +683,7 @@ shutdown :: proc() {
 	unload_map_data()
 	unload_player(&gs.player)
 	unload_companion(&gs.companion)
+	unload_gadreela(&gs.gadreela)
 	unload_blood_scythe(&gs.blood_scythe)
 	unload_enemies(&gs.enemies)
 	unload_flamewardens(&gs.flamewardens)
@@ -911,6 +936,7 @@ Cutscene_Line :: struct {
 Cutscene_Scene :: enum {
 	Opening,
 	Moloch_Confronts_Abaddon,
+	Abaddon_And_Gadreela_Escape,
 }
 
 CUTSCENE_SHAKE_DURATION :: f32(0.4)
@@ -941,12 +967,27 @@ MOLOCH_CONFRONTS_ABADDON_SCENE := [?]Cutscene_Line{
 }
 
 @(private = "file")
+ABADDON_AND_GADREELA_ESCAPE_SCENE := [?]Cutscene_Line{
+	{"Abaddon",  "Gadreela. Come, it is safe now, I know you are here.", false},
+	{"Gadreela", "Hey... I'm not hungry anymore...", false},
+	{"Abaddon",  "Yes, Moloch's blood is enough to sustain you\nfor seven... maybe ten years.", false},
+	{"Abaddon",  "Damn! He's trying to bring this whole city down\nin his last effort. That spiteful...", true},
+	{"Abaddon",  "Gadreela, follow me. We must escape this city.", false},
+	{"Gadreela", "Where will we go, Dad?", false},
+	{"Abaddon",  "We will head for the Middle Realm,\nwhere the Humans dwell.", false},
+	{"Gadreela", "What if I get hungry again?", false},
+	{"Abaddon",  "There will be other beings from Hel.\nIncluding at least one Arch Angel I know of. Azazeel.\nOthers are bound to come.", false},
+}
+
+@(private = "file")
 current_cutscene :: proc() -> []Cutscene_Line {
 	switch gs.cutscene_scene {
 	case .Opening:
 		return OPENING_SCENE[:]
 	case .Moloch_Confronts_Abaddon:
 		return MOLOCH_CONFRONTS_ABADDON_SCENE[:]
+	case .Abaddon_And_Gadreela_Escape:
+		return ABADDON_AND_GADREELA_ESCAPE_SCENE[:]
 	}
 	return OPENING_SCENE[:]
 }
@@ -960,6 +1001,8 @@ end_cutscene :: proc() {
 		gs.phase = .Pre_Round
 		raylib.PlayMusicStream(gs.music_theme)
 	case .Moloch_Confronts_Abaddon:
+		start_round()
+	case .Abaddon_And_Gadreela_Escape:
 		start_round()
 	}
 }
@@ -1215,6 +1258,7 @@ update_playing :: proc(dt: f32) {
 	update_quick_attack(&gs.player, &gs.companion, &gs.blood_scythe, dt)
 	update_player(&gs.player, &gs.map_data, dt)
 	update_companion(&gs.companion, &gs.player, &gs.blood_scythe, dt)
+	update_gadreela(&gs.gadreela, &gs.player, &gs.map_data, dt)
 
 	// SFX: jump
 	if gs.player.jumps_left < prev_jumps {
@@ -1290,12 +1334,17 @@ update_playing :: proc(dt: f32) {
 		gs.player.dash_impact_damage_dealt = true
 	}
 
-	// Boss defeated — game won
+	// Boss defeated — trigger escape cutscene then descending levels
 	if gs.moloch.active && gs.moloch.state == .Dead {
 		raylib.StopMusicStream(gs.music_boss)
 		raylib.StopSound(gs.sfx_footsteps)
-		gs.phase = .Game_Won
-		gs.phase_timer = 3.0
+		unload_map_data()
+		gs.current_round += 1
+		gs.cutscene_scene = .Abaddon_And_Gadreela_Escape
+		gs.cutscene_line = 0
+		gs.cutscene_shake = 0
+		gs.phase = .Cutscene
+		raylib.PlayMusicStream(gs.music_cutscene)
 		return
 	}
 
@@ -1342,6 +1391,7 @@ draw_playing :: proc() {
 	draw_flamewardens(&gs.flamewardens, gs.white_flash_shader)
 	draw_devils(&gs.devils, gs.white_flash_shader)
 	draw_moloch(&gs.moloch, gs.white_flash_shader)
+	draw_gadreela(&gs.gadreela)
 	draw_player(&gs.player, gs.white_flash_shader)
 	draw_companion(&gs.companion, &gs.player)
 	draw_blood_scythe(&gs.blood_scythe, &gs.player)
@@ -1518,7 +1568,7 @@ draw_pause_map :: proc() {
 		for cell, cx in row {
 			sym := cell.symbol
 			if sym == '.' || sym == 's' || sym == 'b' || sym == 'g' ||
-			   sym == 'd' || sym == 't' || sym == '*' || sym == 'B' {
+			   sym == 'd' || sym == 't' || sym == '*' || sym == 'B' || sym == '@' {
 				continue
 			}
 			x := ox + i32(cx) * CELL
@@ -1683,12 +1733,18 @@ draw_controls_screen :: proc() {
 update_round_won :: proc(dt: f32) {
 	gs.phase_timer -= dt
 	if gs.phase_timer <= 0 || input_confirm() {
+		// Final descending level complete — go to Game_Won (keep map loaded for its draw)
+		if gs.current_round + 1 >= ROUND_COUNT {
+			gs.current_round += 1
+			raylib.StopMusicStream(gs.music_theme)
+			gs.phase = .Game_Won
+			gs.phase_timer = 3.0
+			return
+		}
+
 		unload_map_data()
 		gs.current_round += 1
-		if gs.current_round >= ROUND_COUNT {
-			gs.current_round = 0
-			gs.phase = .Main_Menu
-		} else if gs.current_round == 3 {
+		if gs.current_round == 3 {
 			// Play Moloch confronts Abaddon cutscene before level4
 			gs.cutscene_scene = .Moloch_Confronts_Abaddon
 			gs.cutscene_line = 0
@@ -1714,6 +1770,7 @@ draw_round_won :: proc() {
 	draw_flamewardens(&gs.flamewardens, gs.white_flash_shader)
 	draw_devils(&gs.devils, gs.white_flash_shader)
 	draw_moloch(&gs.moloch, gs.white_flash_shader)
+	draw_gadreela(&gs.gadreela)
 	draw_player(&gs.player, gs.white_flash_shader)
 	raylib.EndMode2D()
 
@@ -2030,7 +2087,7 @@ draw_map :: proc() {
 			draw_x := f32(cx) * TILE_SIZE
 			draw_y := f32(ry) * TILE_SIZE
 
-			if cell.symbol == '.' || cell.symbol == 's' || cell.symbol == 'b' || cell.symbol == 'g' || cell.symbol == 'd' {
+			if cell.symbol == '.' || cell.symbol == 's' || cell.symbol == 'b' || cell.symbol == 'g' || cell.symbol == 'd' || cell.symbol == '@' {
 				continue
 			}
 

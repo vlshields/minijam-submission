@@ -149,14 +149,30 @@ BP_FLAMEWARDEN_KILL :: 5
 BP_MIN_CARRY        :: 25
 
 // Rooms (player advances by finding the door in each)
-ROUND_COUNT :: 5
+ROUND_COUNT :: 7
 ROUND_MAPS : [ROUND_COUNT]string : {
 	"assets/maps/main_area_first.map",
 	"assets/maps/level2.map",
 	"assets/maps/level3.map",
 	"assets/maps/level4.map",
 	"assets/maps/level_final.map",
+	"assets/maps/descending_level6.map",
+	"assets/maps/descending_level7.map",
 }
+MOLOCH_ROUND       :: 4
+DESCENDING_ROUND_0 :: 5
+
+// Gadreela (player's daughter — non-combat follower in descending levels)
+GADREELA_SRC_SIZE        :: 32
+GADREELA_HITBOX_W        :: 8
+GADREELA_HITBOX_H        :: 14
+GADREELA_SPEED           :: 90.0
+GADREELA_FOLLOW_DISTANCE :: 20.0
+GADREELA_STOP_TOLERANCE  :: 2.0
+GADREELA_RESPAWN_DIST_Y  :: 40.0
+GADREELA_RESPAWN_DIST_X  :: 260.0
+GADREELA_ANIM_FPS        :: 10.0
+GADREELA_SPAWN_FPS       :: 14.0
 
 // Parallax background
 PARALLAX_LAYER_COUNT :: 3
